@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Zap, Target, Mail, Send, Award, Flame, Users, LayoutDashboard } from "lucide-react";
+import { Zap, Target, Mail, Send, Award, Flame, Users, LayoutDashboard, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -58,6 +58,12 @@ export default function Sidebar() {
           <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/inbox' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
             <Mail className="w-5 h-5" />
             <span className="font-medium">Priority Inbox</span>
+          </span>
+        </Link>
+        <Link href="/activity">
+          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/activity' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+            <Activity className="w-5 h-5" />
+            <span className="font-medium">Activity Log</span>
           </span>
         </Link>
       </nav>
