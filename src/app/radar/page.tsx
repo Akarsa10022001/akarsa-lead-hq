@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Mail, ChevronDown } from "lucide-react";
+import { Search, Filter, Mail, ChevronDown, Edit2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -43,6 +43,18 @@ export default function Radar() {
     const matchesStatus = statusFilter ? lead.status === statusFilter : true;
     return matchesSearch && matchesStatus;
   });
+
+  const handleEditLead = async (lead: any) => {
+    const newPhone = window.prompt("Enter new phone number (include country code, e.g., 919876543210):", lead.phone || "");
+    if (newPhone !== null && newPhone !== lead.phone) {
+      const { error } = await supabase.from('leads').update({ phone: newPhone }).eq('id', lead.id);
+      if (!error) {
+        setLeads(leads.map(l => l.id === lead.id ? { ...l, phone: newPhone } : l));
+      } else {
+        alert("Failed to update phone number.");
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -150,8 +162,15 @@ export default function Radar() {
                         {lead.status || 'New'}
                       </span>
                     </td>
-                    <td className="p-4 text-right">
-                      <Link href={`/campaigns?leadId=${lead.id}`} className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer">
+                    <td className="p-4 text-right flex justify-end gap-2">
+                      <button 
+                        onClick={() => handleEditLead(lead)}
+                        className="inline-block p-2 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                        title="Edit Phone Number"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <Link href={`/campaigns?leadId=${lead.id}`} className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Launch Campaign">
                         <Mail className="w-4 h-4" />
                       </Link>
                     </td>
