@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { sendWhatsAppTemplate } from '@/lib/outreach/whatsapp';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 export async function POST(req: Request) {
   try {
@@ -60,22 +60,26 @@ export async function POST(req: Request) {
         ]
       });
     } else if (channel === 'email') {
-      if (!process.env.RESEND_API_KEY) {
-        throw new Error("RESEND_API_KEY is not configured.");
+      if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+        throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not configured in environment variables.");
       }
       
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const { data, error } = await resend.emails.send({
-        from: 'Akarsa <founder@akarsa.in>',
-        to: [targetEmail],
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      });
+
+      const info = await transporter.sendMail({
+        from: `"Akarsa" <${process.env.GMAIL_USER}>`,
+        to: targetEmail,
         subject: emailSubject,
         text: emailBody,
       });
 
-      if (error) {
-        throw new Error(`Resend Error: ${error.message}`);
-      }
-      sendResult = data;
+      sendResult = info;
     }
 
     // 5. Log the sent message
