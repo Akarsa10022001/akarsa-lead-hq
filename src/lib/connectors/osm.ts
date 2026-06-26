@@ -24,7 +24,11 @@ export class OSMOverpassConnector implements Connector {
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
-      body: overpassQuery,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: `data=${encodeURIComponent(overpassQuery)}`,
     });
 
     if (!response.ok) {
