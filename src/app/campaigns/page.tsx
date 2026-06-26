@@ -4,11 +4,11 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
 import { Send, Copy, AlertCircle, Sparkles, CheckCircle2, MessageCircle, Mail } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
-export default function Campaigns() {
+function CampaignsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const leadId = searchParams.get('leadId');
@@ -227,5 +227,13 @@ export default function Campaigns() {
         </motion.div>
       </main>
     </div>
+  );
+}
+
+export default function Campaigns() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center">Loading campaign data...</div>}>
+      <CampaignsContent />
+    </Suspense>
   );
 }

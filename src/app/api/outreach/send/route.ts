@@ -3,8 +3,6 @@ import { supabase } from '@/lib/supabase/client';
 import { sendWhatsAppTemplate } from '@/lib/outreach/whatsapp';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req: Request) {
   try {
     const { leadId, templateName, channel = 'whatsapp', testPhone, emailSubject, emailBody, targetEmail } = await req.json();
@@ -66,8 +64,9 @@ export async function POST(req: Request) {
         throw new Error("RESEND_API_KEY is not configured.");
       }
       
+      const resend = new Resend(process.env.RESEND_API_KEY);
       const { data, error } = await resend.emails.send({
-        from: 'Akarsa <founder@akarsa.in>', // Note: the user will need to verify a domain in Resend
+        from: 'Akarsa <founder@akarsa.in>',
         to: [targetEmail],
         subject: emailSubject,
         text: emailBody,
