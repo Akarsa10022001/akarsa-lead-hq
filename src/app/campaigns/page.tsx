@@ -10,6 +10,7 @@ export default function Campaigns() {
   const [isSent, setIsSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [channel, setChannel] = useState<'whatsapp' | 'email'>('email');
+  const [testPhone, setTestPhone] = useState("");
 
   const subject = "Malwa Mill legacy vs. Online D2C potential";
   const emailBody = `Hi Narendra,\n\nI was checking out Suresh Namkeen online today. Your legacy since 1960 and massive 170+ product variety is incredible.\n\nHowever, reading "Lab-like Hygiene" on your site felt a bit clinical for such a rich, flavorful brand. You clearly have immense offline dominance at Malwa Mill Square, but your current online setup (running partly on a free Wix domain) is likely leaving massive Direct-to-Consumer revenue on the table.\n\nAt Akarsa, we help heritage brands build premium visual stories that drive direct online sales. I'd love to show you how we could modernize your digital storefront without losing your 60-year legacy. Open to a brief chat next week?\n\nBest,\nRitik Sharma`;
@@ -29,7 +30,7 @@ export default function Campaigns() {
       const res = await fetch('/api/outreach/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: 'mock-1', templateName: 'akarsa_initial_contact', channel: 'whatsapp' })
+        body: JSON.stringify({ leadId: 'mock-1', templateName: 'akarsa_initial_contact', channel: 'whatsapp', testPhone })
       });
       
       const data = await res.json();
@@ -122,6 +123,19 @@ export default function Campaigns() {
                 {emailBody}
               </div>
             </div>
+
+            {channel === 'whatsapp' && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Test Phone Number (Optional)</label>
+                <input 
+                  type="text" 
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="e.g. 919876543210 (Include Country Code)" 
+                  className="w-full p-3 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm"
+                />
+              </div>
+            )}
 
             <div className="flex items-start gap-3 text-sm text-yellow-500 bg-yellow-500/10 p-3 rounded-lg border border-yellow-500/20">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />

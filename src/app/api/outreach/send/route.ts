@@ -4,7 +4,7 @@ import { sendWhatsAppTemplate } from '@/lib/outreach/whatsapp';
 
 export async function POST(req: Request) {
   try {
-    const { leadId, templateName, channel = 'whatsapp' } = await req.json();
+    const { leadId, templateName, channel = 'whatsapp', testPhone } = await req.json();
 
     if (!leadId) {
       return NextResponse.json({ success: false, error: 'Lead ID required' }, { status: 400 });
@@ -58,14 +58,17 @@ export async function POST(req: Request) {
     // 4. Send Message (WhatsApp)
     let sendResult = null;
     if (channel === 'whatsapp') {
-      if (!lead.phone) {
+      if (!lead.phone && !testPhone) {
          throw new Error("Lead does not have a phone number for WhatsApp.");
       }
-      if (leadId === 'mock-1') {
+      
+      const phoneToSend = testPhone ? testPhone.replace(/\D/g, '') : lead.phone.replace(/\D/g, '');
+
+      if (leadId === 'mock-1' && !testPhone) {
         sendResult = { mock: true, message: "WhatsApp message mocked successfully to avoid Meta API errors." };
       } else {
         sendResult = await sendWhatsAppTemplate({
-          to: lead.phone.replace(/\D/g, ''),
+          to: phoneToSend,
           templateName: templateName || 'akarsa_initial_contact',
           components: [
             { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
