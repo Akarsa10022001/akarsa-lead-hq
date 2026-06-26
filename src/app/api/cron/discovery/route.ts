@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { OSMOverpassConnector } from '@/lib/connectors/osm';
 import { CustomTechConnector } from '@/lib/connectors/tech';
 import { callLLM } from '@/lib/llm';
+import dns from 'dns';
 
 export async function POST() {
   try {
@@ -60,6 +61,34 @@ export async function POST() {
 
       // Combine all evidence
       const allEvidence = [...normalizedOsm.evidence, ...techEvidence];
+      
+      let emailVerified = false;
+      let discoveredEmail = normalizedOsm.email || null;
+      
+      // If we don't have an email from OSM, try to extract one from tech results if present
+      if (!discoveredEmail && techEvidence.length > 0) {
+        // Just mock extracting an email if one existed in the raw text, for now we assume tech connector doesn't return emails, but if it did:
+      }
+
+      // Check MX Record if we have an email
+      if (discoveredEmail) {
+        try {
+          const domain = discoveredEmail.split('@')[1];
+          if (domain) {
+            const mxRecords = await dns.promises.resolveMx(domain);
+            if (mxRecords && mxRecords.length > 0) {
+              emailVerified = true;
+              allEvidence.push({
+                category: 'reachability',
+                signal_type: 'email_verified',
+                evidence_text: `Verified MX records for ${domain}`
+              });
+            }
+          }
+        } catch (err) {
+          console.warn(`MX check failed for ${discoveredEmail}`);
+        }
+      }
 
       // 4. Calculate a basic score based on evidence
       let score = 50; // Base score

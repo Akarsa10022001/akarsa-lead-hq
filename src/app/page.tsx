@@ -4,10 +4,77 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
 import { Users, Mail, CheckCircle2, TrendingUp, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase/client";
 
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
+  const [metrics, setMetrics] = useState({
+    totalLeads: 0,
+    emailsSent: 0,
+    meetingsBooked: 0, // Placeholder for future feature
+    conversionRate: "0%"
+  });
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [lastRun, setLastRun] = useState<string>("Unknown");
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    // 1. Fetch metrics
+    const { count: leadsCount } = await supabase.from('leads').select('*', { count: 'exact', head: true });
+    const { count: emailsCount } = await supabase.from('outreach_messages').select('*', { count: 'exact', head: true }).neq('status', 'received');
+    const { count: repliesCount } = await supabase.from('outreach_messages').select('*', { count: 'exact', head: true }).eq('status', 'received');
+    
+    let convRate = "0%";
+    if (emailsCount && emailsCount > 0 && repliesCount !== null) {
+      convRate = ((repliesCount / emailsCount) * 100).toFixed(1) + "%";
+    }
+
+    setMetrics({
+      totalLeads: leadsCount || 0,
+      emailsSent: emailsCount || 0,
+      meetingsBooked: repliesCount || 0, // Mapping replies to meetings booked for now
+      conversionRate: convRate
+    });
+
+    // 2. Fetch Recent Activity
+    const { data: activityData } = await supabase
+      .from('outreach_messages')
+      .select(`
+        id,
+        sent_at,
+        channel,
+        status,
+        outreach_sequences!inner(
+          leads!inner(
+            company_name
+          )
+        )
+      `)
+      .order('sent_at', { ascending: false })
+      .limit(5);
+
+    if (activityData) {
+      setRecentActivity(activityData);
+    }
+
+    // 3. Fetch Last Run (most recent lead created)
+    const { data: lastLead } = await supabase
+      .from('leads')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastLead) {
+      setLastRun(new Date(lastLead.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+    } else {
+      setLastRun("Never");
+    }
+  };
 
   const handleManualScan = async () => {
     setIsScanning(true);
@@ -16,6 +83,7 @@ export default function Home() {
       const data = await res.json();
       if (data.success) {
         alert(`Scan complete! Found ${data.leads?.length || 0} leads.`);
+        fetchDashboardData(); // Refresh metrics
       } else {
         alert("Scan failed: " + data.error);
       }
@@ -25,6 +93,13 @@ export default function Home() {
       setIsScanning(false);
     }
   };
+
+  // Compute Daily Quests dynamically based on metrics
+  const quests = [
+    { label: "Send 10 Outreach Messages", current: metrics.emailsSent, target: 10 },
+    { label: "Find 5 New Leads", current: metrics.totalLeads, target: 5 },
+    { label: "Get 1 Reply", current: metrics.meetingsBooked, target: 1 }
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,10 +115,10 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {/* Stat Cards */}
             {[
-              { title: "Total Leads", value: "248", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-              { title: "Emails Sent", value: "1,024", icon: Mail, color: "text-primary", bg: "bg-primary/10" },
-              { title: "Meetings Booked", value: "12", icon: CheckCircle2, color: "text-accent", bg: "bg-accent/10" },
-              { title: "Conversion Rate", value: "4.8%", icon: TrendingUp, color: "text-orange-500", bg: "bg-orange-500/10" },
+              { title: "Total Leads", value: metrics.totalLeads.toString(), icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+              { title: "Messages Sent", value: metrics.emailsSent.toString(), icon: Mail, color: "text-primary", bg: "bg-primary/10" },
+              { title: "Replies Received", value: metrics.meetingsBooked.toString(), icon: CheckCircle2, color: "text-accent", bg: "bg-accent/10" },
+              { title: "Reply Rate", value: metrics.conversionRate, icon: TrendingUp, color: "text-orange-500", bg: "bg-orange-500/10" },
             ].map((stat, idx) => (
               <motion.div 
                 key={idx}
@@ -67,33 +142,61 @@ export default function Home() {
             <div className="lg:col-span-2 p-6 rounded-2xl bg-card border border-border">
               <h3 className="text-lg font-bold mb-4">Recent Activity</h3>
               <div className="space-y-4">
-                {[
-                  { title: "Email sent to Chemox ChemoPharma", time: "10 mins ago", type: "email" },
-                  { title: "Subagent discovered 3 new Namkeen leads", time: "1 hour ago", type: "agent" },
-                  { title: "Meeting scheduled with Ratan Sev Bhandar", time: "3 hours ago", type: "meeting" },
-                ].map((activity, idx) => (
-                  <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border/50">
-                    <div className="w-2 h-2 rounded-full bg-primary"></div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                {recentActivity.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No activity yet. Run a scan to find leads!</p>
+                ) : (
+                  recentActivity.map((activity, idx) => (
+                    <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border/50">
+                      <div className={`w-2 h-2 rounded-full ${activity.status === 'received' ? 'bg-accent' : 'bg-primary'}`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {activity.status === 'received' 
+                            ? `Received reply from ${activity.outreach_sequences.leads.company_name} via ${activity.channel}` 
+                            : `Sent ${activity.channel} to ${activity.outreach_sequences.leads.company_name}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(activity.sent_at).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
-                AI Agent Status
-              </h3>
-              <div className="p-4 rounded-xl bg-background border border-border mb-4">
-                <p className="text-sm text-muted-foreground mb-2">Next Scheduled Run:</p>
-                <p className="font-mono font-bold text-lg">Today, 14:00</p>
-                <p className="text-xs text-primary mt-1">Hunting: B2B Pharma</p>
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 flex flex-col justify-between">
+              <div>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                  AI Agent Status
+                </h3>
+                <div className="p-4 rounded-xl bg-background border border-border mb-4">
+                  <p className="text-sm text-muted-foreground mb-2">Last Scheduled Run:</p>
+                  <p className="font-mono font-bold text-lg">{lastRun}</p>
+                  <p className="text-xs text-primary mt-1">Status: Sleeping (cron at 09:00 UTC)</p>
+                </div>
+
+                <div className="mb-6">
+                  <h4 className="text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wider">Dynamic Quests</h4>
+                  {quests.map((q, i) => (
+                    <div key={i} className="mb-3 last:mb-0">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>{q.label}</span>
+                        <span className="text-primary font-mono">{q.current}/{q.target}</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, (q.current/q.target) * 100)}%` }}
+                          className={`h-full ${q.current >= q.target ? 'bg-accent' : 'bg-primary'}`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+
               <button 
                 onClick={handleManualScan}
                 disabled={isScanning}

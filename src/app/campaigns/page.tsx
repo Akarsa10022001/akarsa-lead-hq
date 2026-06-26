@@ -19,26 +19,72 @@ function CampaignsContent() {
   const [channel, setChannel] = useState<'whatsapp' | 'email'>('whatsapp');
   const [testPhone, setTestPhone] = useState("");
   const [lead, setLead] = useState<any>(null);
+  
+  // Editable fields
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    async function fetchLead() {
+    async function fetchData() {
       if (!leadId) {
         setFetching(false);
         return;
       }
-      const { data, error } = await supabase
+      // Fetch Lead
+      const { data: leadData, error: leadError } = await supabase
         .from('leads')
         .select('*')
         .eq('id', leadId)
         .single();
       
-      if (!error && data) {
-        setLead(data);
+      if (!leadError && leadData) {
+        setLead(leadData);
+        
+        // Check for existing sequence draft
+        const { data: seqData } = await supabase
+          .from('outreach_sequences')
+          .select('*')
+          .eq('lead_id', leadId)
+          .maybeSingle();
+
+        if (seqData && seqData.draft_content) {
+          setBody(seqData.draft_content);
+          // Assuming subject might be stored in future, but for now we'll just set default
+          setSubject(`${leadData.company_name} legacy vs. Online D2C potential`);
+        } else {
+          // Construct default
+          const hookText = leadData.ai_hook_draft || "your strong local presence";
+          const contactName = leadData.contact_name || "Founder";
+          setSubject(`${leadData.company_name} legacy vs. Online D2C potential`);
+          setBody(`Hi ${contactName},\n\nI was checking out ${leadData.company_name} online today. Your local reputation and product variety is incredible.\n\nHowever, reading "${hookText}" on your site felt a bit clinical for such a rich, flavorful brand. You clearly have immense offline dominance, but your current online setup is likely leaving massive Direct-to-Consumer revenue on the table.\n\nAt Akarsa, we help heritage brands build premium visual stories that drive direct online sales. I'd love to show you how we could modernize your digital storefront without losing your legacy. Open to a brief chat next week?\n\nBest,\nRitik Sharma`);
+        }
       }
       setFetching(false);
     }
-    fetchLead();
+    fetchData();
   }, [leadId]);
+
+  const handleSaveDraft = async () => {
+    if (!leadId) return;
+    
+    // Upsert outreach sequence with the new draft
+    const { data: existingSeq } = await supabase
+      .from('outreach_sequences')
+      .select('id')
+      .eq('lead_id', leadId)
+      .maybeSingle();
+
+    if (existingSeq) {
+      await supabase.from('outreach_sequences').update({ draft_content: body }).eq('id', existingSeq.id);
+    } else {
+      await supabase.from('outreach_sequences').insert({
+        lead_id: leadId,
+        status: 'draft',
+        draft_content: body
+      });
+    }
+  };
 
   if (fetching) {
     return (
@@ -71,16 +117,10 @@ function CampaignsContent() {
     );
   }
 
-  const subject = `${lead.company_name} legacy vs. Online D2C potential`;
-  
-  // Construct dynamic email body based on DB hook
-  const hookText = lead.ai_hook_draft || "your strong local presence";
-  const contactName = lead.contact_name || "Founder";
-  
-  const emailBody = `Hi ${contactName},\n\nI was checking out ${lead.company_name} online today. Your local reputation and product variety is incredible.\n\nHowever, reading "${hookText}" on your site felt a bit clinical for such a rich, flavorful brand. You clearly have immense offline dominance, but your current online setup is likely leaving massive Direct-to-Consumer revenue on the table.\n\nAt Akarsa, we help heritage brands build premium visual stories that drive direct online sales. I'd love to show you how we could modernize your digital storefront without losing your legacy. Open to a brief chat next week?\n\nBest,\nRitik Sharma`;
-
   const handleSend = async () => {
     setLoading(true);
+    await handleSaveDraft(); // Ensure latest draft is saved before sending
+    
     try {
       const payload = { 
         leadId: lead.id, 
@@ -88,7 +128,7 @@ function CampaignsContent() {
         channel, 
         testPhone,
         emailSubject: subject,
-        emailBody: emailBody,
+        emailBody: body,
         targetEmail: lead.email || 'hello@example.com'
       };
 
@@ -114,7 +154,7 @@ function CampaignsContent() {
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(`${subject}\n\n${emailBody}`);
+    navigator.clipboard.writeText(`${subject}\n\n${body}`);
     alert("Draft copied to clipboard!");
   };
 
@@ -154,7 +194,7 @@ function CampaignsContent() {
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" /> AI Draft Ready
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Target: {contactName} ({lead.company_name})</p>
+              <p className="text-sm text-muted-foreground mt-1">Target: {lead.contact_name || "Founder"} ({lead.company_name})</p>
             </div>
             
             <div className="flex items-center gap-2 bg-background border border-border p-1 rounded-xl">
@@ -176,16 +216,37 @@ function CampaignsContent() {
           <div className="p-4 md:p-8 space-y-6">
             <div className="space-y-1">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Subject Line</label>
-              <div className="p-3 bg-secondary/50 border border-border rounded-lg text-foreground font-medium text-sm md:text-base">
-                {subject}
-              </div>
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  value={subject} 
+                  onChange={e => setSubject(e.target.value)}
+                  className="w-full p-3 bg-background border border-primary rounded-lg text-foreground font-medium text-sm md:text-base focus:outline-none"
+                />
+              ) : (
+                <div className="p-3 bg-secondary/50 border border-border rounded-lg text-foreground font-medium text-sm md:text-base">
+                  {subject}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Message Body</label>
-              <div className="p-4 bg-secondary/50 border border-border rounded-xl text-foreground/90 whitespace-pre-line leading-relaxed text-sm md:text-base font-medium max-h-[40vh] overflow-y-auto">
-                {emailBody}
-              </div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex justify-between">
+                <span>Message Body</span>
+                {isEditing && <span className="text-primary">Autosaves on blur</span>}
+              </label>
+              {isEditing ? (
+                <textarea 
+                  value={body}
+                  onChange={e => setBody(e.target.value)}
+                  onBlur={handleSaveDraft}
+                  className="w-full p-4 bg-background border border-primary rounded-xl text-foreground whitespace-pre-line leading-relaxed text-sm md:text-base font-medium min-h-[300px] focus:outline-none"
+                />
+              ) : (
+                <div className="p-4 bg-secondary/50 border border-border rounded-xl text-foreground/90 whitespace-pre-line leading-relaxed text-sm md:text-base font-medium max-h-[40vh] overflow-y-auto">
+                  {body}
+                </div>
+              )}
             </div>
 
             {channel === 'whatsapp' && (
@@ -212,8 +273,11 @@ function CampaignsContent() {
               <Copy className="w-4 h-4" /> Copy to Clipboard
             </button>
             <div className="flex gap-3 w-full sm:w-auto">
-              <button className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-border hover:bg-secondary text-sm font-bold transition-all">
-                Edit
+              <button 
+                onClick={() => setIsEditing(!isEditing)}
+                className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-border text-sm font-bold transition-all ${isEditing ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-secondary'}`}
+              >
+                {isEditing ? 'Done Editing' : 'Edit'}
               </button>
               <button 
                 onClick={handleSend}
