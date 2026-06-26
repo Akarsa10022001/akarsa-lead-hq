@@ -22,12 +22,24 @@ export async function POST() {
       // 2. Normalize OSM data
       const normalizedOsm = osmConnector.normalize(rawRecord);
       
+      // Check for existing lead to prevent duplicates
+      const externalId = (rawRecord.place_id || rawRecord.id || Date.now()).toString();
+      const { data: existingRaw } = await supabase
+        .from('raw_records')
+        .select('id')
+        .eq('external_id', externalId)
+        .maybeSingle();
+
+      if (existingRaw) {
+        continue; // Skip processing if we already scraped this lead
+      }
+      
       // Save Raw Record
       const { data: rawDbRecord, error: rawError } = await supabase
         .from('raw_records')
         .insert({
           source_name: osmConnector.name,
-          external_id: (rawRecord.place_id || rawRecord.id || Date.now()).toString(),
+          external_id: externalId,
           raw_data: rawRecord,
           lawful_basis: 'public_data',
           processed: true
