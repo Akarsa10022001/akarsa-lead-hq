@@ -23,15 +23,18 @@ export async function POST() {
     let aiHook = 'Test AI Hook (Fallback)';
     try {
       const llmResult = await callLLM({
-        task: 'Extract a 3-word hook from this text.',
+        task: 'Extract a 3-word hook from this text. You must return a JSON object with the exact key "hook".',
         prompt: 'The company is Acme Corp and they make really great anvils.',
         preferredProvider: 'groq'
       });
       if (llmResult && typeof llmResult === 'object' && llmResult.hook) {
         aiHook = llmResult.hook;
+      } else if (llmResult && typeof llmResult === 'object') {
+        // Fallback in case it returned a different key
+        aiHook = Object.values(llmResult)[0] as string || 'Fallback Hook';
       }
     } catch (e) {
-      console.warn("LLM call failed (expected if API keys are missing):", e);
+      console.warn("LLM call failed:", e);
     }
 
     // 3. Insert a mock lead
