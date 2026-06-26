@@ -4,65 +4,42 @@ export class OSMOverpassConnector implements Connector {
   name = 'osm_overpass';
 
   async search(query: { location: string; tags: string[] }): Promise<any[]> {
-    // 1. Geocode the location using free Nominatim to get a fast bounding box
-    const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.location)}&format=json&limit=1`, {
+    // We bypass Overpass API entirely because it constantly throws 504 Gateway Timeouts on free tiers.
+    // Instead, we use Nominatim's POI search which is highly reliable.
+    
+    // Parse out the primary amenity from tags (e.g. "amenity=restaurant" -> "restaurant")
+    let primaryTag = "restaurant";
+    if (query.tags && query.tags.length > 0) {
+      const match = query.tags[0].match(/=(.*)$/);
+      if (match) primaryTag = match[1];
+    }
+
+    const searchQuery = `${primaryTag} in ${query.location}`;
+    
+    const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=15&extratags=1`, {
       headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (contact@akarsa.com)' }
     });
-    const nomData = await nomResponse.json();
     
-    if (!nomData || nomData.length === 0) {
-      console.warn("Location not found in Nominatim:", query.location);
-      return [];
-    }
-    
-    // Nominatim bbox: [south, north, west, east]
-    // Overpass bbox: (south, west, north, east)
-    const b = nomData[0].boundingbox;
-    const bbox = `${b[0]},${b[2]},${b[1]},${b[3]}`;
-
-    // 2. Query Overpass using the fast bbox
-    const tagsString = query.tags.map(tag => `node[${tag}](${bbox});`).join('');
-    
-    const overpassQuery = `
-      [out:json][timeout:15];
-      (
-        ${tagsString}
-      );
-      out 10;
-    `;
-
-    const response = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'User-Agent': 'akarsa-lead-hq/1.0 (contact@akarsa.com)',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
-      },
-      body: `data=${encodeURIComponent(overpassQuery)}`,
-    });
-
-    if (!response.ok) {
-      throw new Error(`OSM Overpass Error: ${response.status}`);
+    if (!nomResponse.ok) {
+      throw new Error(`OSM Nominatim Error: ${nomResponse.status}`);
     }
 
-    const data = await response.json();
-    // Return elements that have a name tag
-    return data.elements.filter((el: any) => el.tags && el.tags.name);
+    const data = await nomResponse.json();
+    return data;
   }
 
   async fetchDetail(recordId: string): Promise<any> {
-    // OSM usually returns all info in the search query, so this might just return the record or do a specific node lookup
     return null; 
   }
 
   normalize(rawRecord: any): NormalizedLead {
-    const tags = rawRecord.tags || {};
+    const tags = rawRecord.extratags || {};
     return {
-      company_name: tags.name || 'Unknown Business',
+      company_name: rawRecord.name || 'Unknown Business',
       domain: tags.website || null,
-      industry: tags.amenity || tags.shop || 'F&B',
+      industry: rawRecord.type || tags.amenity || tags.shop || 'F&B',
       phone: tags.phone || tags['contact:phone'] || null,
-      location: `${tags['addr:street'] || ''} ${tags['addr:city'] || ''}`.trim(),
+      location: rawRecord.display_name?.split(',').slice(0, 3).join(',') || 'Unknown',
       raw_data: rawRecord,
       source_name: this.name,
       evidence: this.getEvidence(rawRecord)
@@ -71,7 +48,7 @@ export class OSMOverpassConnector implements Connector {
 
   getEvidence(rawRecord: any): ConnectorEvidence[] {
     const evidence: ConnectorEvidence[] = [];
-    const tags = rawRecord.tags || {};
+    const tags = rawRecord.extratags || {};
     
     if (tags.website) {
       evidence.push({
