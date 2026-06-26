@@ -3,15 +3,35 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
-import { Users, Mail, CheckCircle2, TrendingUp } from "lucide-react";
+import { Users, Mail, CheckCircle2, TrendingUp, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 export default function Home() {
+  const [isScanning, setIsScanning] = useState(false);
+
+  const handleManualScan = async () => {
+    setIsScanning(true);
+    try {
+      const res = await fetch('/api/cron/discovery', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Scan complete! Found ${data.leads?.length || 0} leads.`);
+      } else {
+        alert("Scan failed: " + data.error);
+      }
+    } catch (e) {
+      alert("Error triggering scan.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
       <Header />
       
-      <main className="ml-72 p-8">
+      <main className="md:ml-72 p-4 md:p-8">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -74,8 +94,12 @@ export default function Home() {
                 <p className="font-mono font-bold text-lg">Today, 14:00</p>
                 <p className="text-xs text-primary mt-1">Hunting: B2B Pharma</p>
               </div>
-              <button className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(147,51,234,0.3)]">
-                Launch Manual Scan
+              <button 
+                onClick={handleManualScan}
+                disabled={isScanning}
+                className="w-full py-3 flex justify-center items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(147,51,234,0.3)] disabled:opacity-50 disabled:shadow-none"
+              >
+                {isScanning ? <><Loader2 className="w-5 h-5 animate-spin" /> Scanning OSM...</> : "Launch Manual Scan"}
               </button>
             </div>
           </div>

@@ -20,7 +20,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-72 bg-card border-r border-border h-screen flex flex-col fixed left-0 top-0 overflow-y-auto">
+    <aside className="w-72 bg-card border-r border-border h-screen hidden md:flex flex-col fixed left-0 top-0 overflow-y-auto">
       {/* Brand */}
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center gap-3">
