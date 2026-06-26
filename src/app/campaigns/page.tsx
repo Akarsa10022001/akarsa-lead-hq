@@ -17,7 +17,7 @@ export default function Campaigns() {
   const handleSend = async () => {
     if (channel === 'email') {
       // Free Zero-Cost Mailto Fallback
-      window.location.href = `mailto:founder@sureshnamkeen.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+      window.open(`mailto:founder@sureshnamkeen.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`, '_self');
       setIsSent(true);
       setTimeout(() => setIsSent(false), 3000);
       return;

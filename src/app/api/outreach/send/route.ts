@@ -11,14 +11,27 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch the lead
-    const { data: lead, error: leadError } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single();
+    let lead = null;
+    if (leadId === 'mock-1') {
+      // Bypass DB for UI demo purposes
+      lead = {
+        id: 'mock-1',
+        company_name: 'Suresh Namkeen',
+        contact_name: 'Narendra Jain',
+        phone: '919876543210',
+        opted_out: false
+      };
+    } else {
+      const { data: dbLead, error: leadError } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', leadId)
+        .single();
 
-    if (leadError || !lead) {
-      throw new Error("Lead not found");
+      if (leadError || !dbLead) {
+        throw new Error("Lead not found");
+      }
+      lead = dbLead;
     }
 
     // 2. Check suppression list / opt-out
@@ -26,61 +39,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Lead has opted out of communications.' }, { status: 403 });
     }
 
-    // 3. Create Outreach Sequence in Supabase
-    const { data: sequence, error: seqError } = await supabase
-      .from('outreach_sequences')
-      .insert({
-        lead_id: lead.id,
-        status: 'active'
-      })
-      .select()
-      .single();
+    let sequenceId = 'mock-seq-1';
 
-    if (seqError) throw seqError;
+    // 3. Create Outreach Sequence in Supabase (if not mock)
+    if (leadId !== 'mock-1') {
+      const { data: sequence, error: seqError } = await supabase
+        .from('outreach_sequences')
+        .insert({
+          lead_id: lead.id,
+          status: 'active'
+        })
+        .select()
+        .single();
+      if (seqError) throw seqError;
+      sequenceId = sequence.id;
+    }
 
     // 4. Send Message (WhatsApp)
     let sendResult = null;
     if (channel === 'whatsapp') {
-      // If phone is missing, we can't send via WA
       if (!lead.phone) {
          throw new Error("Lead does not have a phone number for WhatsApp.");
       }
-      
-      // Dispatch via Meta Cloud API
       sendResult = await sendWhatsAppTemplate({
-        to: lead.phone.replace(/\D/g, ''), // Strip non-digits
+        to: lead.phone.replace(/\D/g, ''),
         templateName: templateName || 'akarsa_initial_contact',
         components: [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: lead.contact_name || lead.company_name }
-            ]
-          }
+          { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
         ]
       });
     } else {
-      // Email fallback (mocked for now, as user requested WhatsApp-first)
       sendResult = { mock: true, message: "Email sent successfully via free SMTP fallback." };
     }
 
-    // 5. Log the sent message
-    await supabase
-      .from('outreach_messages')
-      .insert({
-        sequence_id: sequence.id,
-        step_number: 1,
-        channel: channel,
-        draft_content: `Template: ${templateName || 'akarsa_initial_contact'}`,
-        sent_at: new Date().toISOString(),
-        status: 'sent'
-      });
+    // 5. Log the sent message (if not mock)
+    if (leadId !== 'mock-1') {
+      await supabase
+        .from('outreach_messages')
+        .insert({
+          sequence_id: sequenceId,
+          step_number: 1,
+          channel: channel,
+          draft_content: `Template: ${templateName || 'akarsa_initial_contact'}`,
+          sent_at: new Date().toISOString(),
+          status: 'sent'
+        });
 
-    // Update Lead Status
-    await supabase
-      .from('leads')
-      .update({ status: 'Contacted' })
-      .eq('id', lead.id);
+      await supabase
+        .from('leads')
+        .update({ status: 'Contacted' })
+        .eq('id', lead.id);
+    }
 
     return NextResponse.json({
       success: true,
