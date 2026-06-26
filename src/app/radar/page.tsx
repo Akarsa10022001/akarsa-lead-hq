@@ -29,10 +29,10 @@ export default function Radar() {
       } else {
         // Fallback to initial mock data if table is empty (for UI testing)
         setLeads([
-          { id: "mock-1", company_name: "Suresh Namkeen", contact_name: "Narendra Jain", industry: "F&B", status: "New", ai_hook_draft: "Lab-like Hygiene" },
-          { id: "mock-2", company_name: "Ratan Sev Bhandar", contact_name: "P. Gelda", industry: "F&B", status: "Contacted", ai_hook_draft: "500+ Varieties" },
-          { id: "mock-3", company_name: "Chemox ChemoPharma", contact_name: "Kishorbhai", industry: "Pharma", status: "Won", ai_hook_draft: "IndiaMART Reliance" },
-          { id: "mock-4", company_name: "Indore Sweets Hub", contact_name: "Rahul Gupta", industry: "F&B", status: "New", ai_hook_draft: "No Website" },
+          { id: "mock-1", company_name: "Suresh Namkeen", contact_name: "Narendra Jain", phone: "919876543210", industry: "F&B", status: "New", ai_hook_draft: "Lab-like Hygiene" },
+          { id: "mock-2", company_name: "Ratan Sev Bhandar", contact_name: "P. Gelda", phone: "919876543211", industry: "F&B", status: "Contacted", ai_hook_draft: "500+ Varieties" },
+          { id: "mock-3", company_name: "Chemox ChemoPharma", contact_name: "Kishorbhai", phone: "919876543212", industry: "Pharma", status: "Won", ai_hook_draft: "IndiaMART Reliance" },
+          { id: "mock-4", company_name: "Indore Sweets Hub", contact_name: "Rahul Gupta", phone: "919876543213", industry: "F&B", status: "New", ai_hook_draft: "No Website" },
         ]);
       }
       setLoading(false);
@@ -110,6 +110,7 @@ export default function Radar() {
                 <tr className="bg-secondary/50 border-b border-border">
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Company</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phone</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Industry</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Hook</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
@@ -135,6 +136,7 @@ export default function Radar() {
                   >
                     <td className="p-4 font-medium">{lead.company_name}</td>
                     <td className="p-4 text-muted-foreground">{lead.contact_name || 'N/A'}</td>
+                    <td className="p-4 text-muted-foreground font-mono text-sm">{lead.phone || 'N/A'}</td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 bg-secondary rounded-md text-xs font-medium border border-border">
                         {lead.industry}
