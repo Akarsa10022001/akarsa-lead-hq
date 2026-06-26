@@ -27,7 +27,7 @@ export async function POST() {
         .from('raw_records')
         .insert({
           source_name: osmConnector.name,
-          external_id: rawRecord.id.toString(),
+          external_id: (rawRecord.place_id || rawRecord.id || Date.now()).toString(),
           raw_data: rawRecord,
           lawful_basis: 'public_data',
           processed: true
