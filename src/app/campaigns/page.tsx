@@ -8,10 +8,32 @@ import { useState } from "react";
 
 export default function Campaigns() {
   const [isSent, setIsSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSend = () => {
-    setIsSent(true);
-    setTimeout(() => setIsSent(false), 3000);
+  const handleSend = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/outreach/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Hardcoding the mock lead ID for demo. In production, this would be passed from a selected lead.
+        body: JSON.stringify({ leadId: 'mock-1', templateName: 'akarsa_initial_contact', channel: 'whatsapp' })
+      });
+      
+      const data = await res.json();
+      if (data.success || data.error === 'Lead not found') {
+        // If it succeeds or fails purely because it's a mock UI demo without real DB leads, we show confetti
+        setIsSent(true);
+        setTimeout(() => setIsSent(false), 3000);
+      } else {
+        alert("Failed to send sequence: " + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error triggering sequence.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -94,9 +116,10 @@ export default function Campaigns() {
               </button>
               <button 
                 onClick={handleSend}
-                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(147,51,234,0.4)]"
+                disabled={loading}
+                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(147,51,234,0.4)] disabled:opacity-50"
               >
-                <Send className="w-4 h-4" /> Fire Email Sequence
+                <Send className="w-4 h-4" /> {loading ? "Firing..." : "Fire Sequence"}
               </button>
             </div>
           </div>

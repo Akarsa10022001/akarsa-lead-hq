@@ -3,16 +3,39 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
-import { Search, Filter, MoreHorizontal, Check, X, Mail } from "lucide-react";
-import { useState } from "react";
+import { Search, Filter, Mail } from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase/client";
 
 export default function Radar() {
-  const [leads] = useState([
-    { id: 1, company: "Suresh Namkeen", contact: "Narendra Jain", industry: "F&B", status: "New", hook: "Lab-like Hygiene" },
-    { id: 2, company: "Ratan Sev Bhandar", contact: "P. Gelda", industry: "F&B", status: "Emailed", hook: "500+ Varieties" },
-    { id: 3, company: "Chemox ChemoPharma", contact: "Kishorbhai", industry: "Pharma", status: "Hot", hook: "IndiaMART Reliance" },
-    { id: 4, company: "Indore Sweets Hub", contact: "Rahul Gupta", industry: "F&B", status: "New", hook: "No Website" },
-  ]);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchLeads() {
+      // First try to fetch from Supabase
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Error fetching leads:", error);
+      } else if (data && data.length > 0) {
+        setLeads(data);
+      } else {
+        // Fallback to initial mock data if table is empty (for UI testing)
+        setLeads([
+          { id: "mock-1", company_name: "Suresh Namkeen", contact_name: "Narendra Jain", industry: "F&B", status: "New", ai_hook_draft: "Lab-like Hygiene" },
+          { id: "mock-2", company_name: "Ratan Sev Bhandar", contact_name: "P. Gelda", industry: "F&B", status: "Contacted", ai_hook_draft: "500+ Varieties" },
+          { id: "mock-3", company_name: "Chemox ChemoPharma", contact_name: "Kishorbhai", industry: "Pharma", status: "Won", ai_hook_draft: "IndiaMART Reliance" },
+          { id: "mock-4", company_name: "Indore Sweets Hub", contact_name: "Rahul Gupta", industry: "F&B", status: "New", ai_hook_draft: "No Website" },
+        ]);
+      }
+      setLoading(false);
+    }
+    fetchLeads();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -59,7 +82,11 @@ export default function Radar() {
                 </tr>
               </thead>
               <tbody>
-                {leads.map((lead, idx) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="p-4 text-center text-muted-foreground">Loading leads...</td>
+                  </tr>
+                ) : leads.map((lead, idx) => (
                   <motion.tr 
                     key={lead.id}
                     initial={{ opacity: 0, x: -20 }}
@@ -67,20 +94,20 @@ export default function Radar() {
                     transition={{ delay: idx * 0.1 }}
                     className="border-b border-border/50 hover:bg-secondary/30 transition-colors group"
                   >
-                    <td className="p-4 font-medium">{lead.company}</td>
-                    <td className="p-4 text-muted-foreground">{lead.contact}</td>
+                    <td className="p-4 font-medium">{lead.company_name}</td>
+                    <td className="p-4 text-muted-foreground">{lead.contact_name}</td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 bg-secondary rounded-md text-xs font-medium border border-border">
                         {lead.industry}
                       </span>
                     </td>
                     <td className="p-4 text-sm max-w-[200px] truncate text-muted-foreground">
-                      "{lead.hook}"
+                      "{lead.ai_hook_draft}"
                     </td>
                     <td className="p-4">
                       <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${
                         lead.status === 'New' ? 'bg-primary/10 text-primary border-primary/20' : 
-                        lead.status === 'Emailed' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 
+                        lead.status === 'Contacted' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 
                         'bg-accent/10 text-accent border-accent/20'
                       }`}>
                         {lead.status}
