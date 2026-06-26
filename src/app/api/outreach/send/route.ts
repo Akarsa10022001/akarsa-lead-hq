@@ -67,14 +67,10 @@ export async function POST(req: Request) {
       if (leadId === 'mock-1' && !testPhone) {
         sendResult = { mock: true, message: "WhatsApp message mocked successfully to avoid Meta API errors." };
       } else {
-        // Use the universal 'hello_world' template for testing so we don't hit template approval errors
-        const templateToUse = testPhone ? 'hello_world' : (templateName || 'akarsa_initial_contact');
-        
         sendResult = await sendWhatsAppTemplate({
           to: phoneToSend,
-          templateName: templateToUse,
-          // hello_world takes no components, other templates take the lead's name
-          components: templateToUse === 'hello_world' ? [] : [
+          templateName: templateName || 'akarsa_initial_contact',
+          components: [
             { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
           ]
         });
