@@ -49,9 +49,15 @@ export default function Sidebar() {
           </span>
         </Link>
         <Link href="/campaigns">
-          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/campaigns' ? 'bg-primary/20 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/campaigns' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
             <Send className="w-5 h-5" />
             <span className="font-medium">Outreach Campaigns</span>
+          </span>
+        </Link>
+        <Link href="/inbox">
+          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/inbox' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+            <Mail className="w-5 h-5" />
+            <span className="font-medium">Priority Inbox</span>
           </span>
         </Link>
       </nav>

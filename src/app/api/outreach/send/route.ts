@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { sendWhatsAppTemplate } from '@/lib/outreach/whatsapp';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
-    const { leadId, templateName, channel = 'whatsapp', testPhone } = await req.json();
+    const { leadId, templateName, channel = 'whatsapp', testPhone, emailSubject, emailBody, targetEmail } = await req.json();
 
     if (!leadId) {
       return NextResponse.json({ success: false, error: 'Lead ID required' }, { status: 400 });
@@ -42,7 +45,7 @@ export async function POST(req: Request) {
     }
     const sequenceId = sequence.id;
 
-    // 4. Send Message (WhatsApp)
+    // 4. Send Message (WhatsApp or Email)
     let sendResult = null;
     if (channel === 'whatsapp') {
       if (!lead.phone && !testPhone) {
@@ -58,8 +61,22 @@ export async function POST(req: Request) {
           { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
         ]
       });
-    } else {
-      sendResult = { mock: true, message: "Email sent successfully via free SMTP fallback." };
+    } else if (channel === 'email') {
+      if (!process.env.RESEND_API_KEY) {
+        throw new Error("RESEND_API_KEY is not configured.");
+      }
+      
+      const { data, error } = await resend.emails.send({
+        from: 'Akarsa <founder@akarsa.in>', // Note: the user will need to verify a domain in Resend
+        to: [targetEmail],
+        subject: emailSubject,
+        text: emailBody,
+      });
+
+      if (error) {
+        throw new Error(`Resend Error: ${error.message}`);
+      }
+      sendResult = data;
     }
 
     // 5. Log the sent message

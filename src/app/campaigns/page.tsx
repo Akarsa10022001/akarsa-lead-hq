@@ -80,20 +80,22 @@ export default function Campaigns() {
   const emailBody = `Hi ${contactName},\n\nI was checking out ${lead.company_name} online today. Your local reputation and product variety is incredible.\n\nHowever, reading "${hookText}" on your site felt a bit clinical for such a rich, flavorful brand. You clearly have immense offline dominance, but your current online setup is likely leaving massive Direct-to-Consumer revenue on the table.\n\nAt Akarsa, we help heritage brands build premium visual stories that drive direct online sales. I'd love to show you how we could modernize your digital storefront without losing your legacy. Open to a brief chat next week?\n\nBest,\nRitik Sharma`;
 
   const handleSend = async () => {
-    if (channel === 'email') {
-      const emailTarget = lead.email || 'hello@example.com';
-      window.open(`mailto:${emailTarget}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`, '_self');
-      setIsSent(true);
-      setTimeout(() => setIsSent(false), 3000);
-      return;
-    }
-
     setLoading(true);
     try {
+      const payload = { 
+        leadId: lead.id, 
+        templateName: 'akarsa_initial_contact', 
+        channel, 
+        testPhone,
+        emailSubject: subject,
+        emailBody: emailBody,
+        targetEmail: lead.email || 'hello@example.com'
+      };
+
       const res = await fetch('/api/outreach/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: lead.id, templateName: 'akarsa_initial_contact', channel: 'whatsapp', testPhone })
+        body: JSON.stringify(payload)
       });
       
       const data = await res.json();
