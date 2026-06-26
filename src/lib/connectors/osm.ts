@@ -4,22 +4,31 @@ export class OSMOverpassConnector implements Connector {
   name = 'osm_overpass';
 
   async search(query: { location: string; tags: string[] }): Promise<any[]> {
-    // Basic Overpass QL query building
-    // e.g., area["name"="Indore"]->.searchArea; node["amenity"="restaurant"](area.searchArea); out json;
+    // 1. Geocode the location using free Nominatim to get a fast bounding box
+    const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.location)}&format=json&limit=1`, {
+      headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (contact@akarsa.com)' }
+    });
+    const nomData = await nomResponse.json();
     
-    // For safety and rate limits, we use a small radius around a coordinate if location isn't easily geocoded,
-    // but here we can just use the area search.
-    const tagsString = query.tags.map(tag => `node[${tag}](area.searchArea);`).join('');
+    if (!nomData || nomData.length === 0) {
+      console.warn("Location not found in Nominatim:", query.location);
+      return [];
+    }
+    
+    // Nominatim bbox: [south, north, west, east]
+    // Overpass bbox: (south, west, north, east)
+    const b = nomData[0].boundingbox;
+    const bbox = `${b[0]},${b[2]},${b[1]},${b[3]}`;
+
+    // 2. Query Overpass using the fast bbox
+    const tagsString = query.tags.map(tag => `node[${tag}](${bbox});`).join('');
     
     const overpassQuery = `
-      [out:json][timeout:25];
-      area["name"="${query.location}"]->.searchArea;
+      [out:json][timeout:15];
       (
         ${tagsString}
       );
-      out body;
-      >;
-      out skel qt;
+      out 10;
     `;
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
