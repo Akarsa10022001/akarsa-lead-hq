@@ -4,33 +4,96 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
 import { Send, Copy, AlertCircle, Sparkles, CheckCircle2, MessageCircle, Mail } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 
 export default function Campaigns() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const leadId = searchParams.get('leadId');
+
   const [isSent, setIsSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [channel, setChannel] = useState<'whatsapp' | 'email'>('email');
+  const [fetching, setFetching] = useState(true);
+  const [channel, setChannel] = useState<'whatsapp' | 'email'>('whatsapp');
   const [testPhone, setTestPhone] = useState("");
+  const [lead, setLead] = useState<any>(null);
 
-  const subject = "Malwa Mill legacy vs. Online D2C potential";
-  const emailBody = `Hi Narendra,\n\nI was checking out Suresh Namkeen online today. Your legacy since 1960 and massive 170+ product variety is incredible.\n\nHowever, reading "Lab-like Hygiene" on your site felt a bit clinical for such a rich, flavorful brand. You clearly have immense offline dominance at Malwa Mill Square, but your current online setup (running partly on a free Wix domain) is likely leaving massive Direct-to-Consumer revenue on the table.\n\nAt Akarsa, we help heritage brands build premium visual stories that drive direct online sales. I'd love to show you how we could modernize your digital storefront without losing your 60-year legacy. Open to a brief chat next week?\n\nBest,\nRitik Sharma`;
+  useEffect(() => {
+    async function fetchLead() {
+      if (!leadId) {
+        setFetching(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', leadId)
+        .single();
+      
+      if (!error && data) {
+        setLead(data);
+      }
+      setFetching(false);
+    }
+    fetchLead();
+  }, [leadId]);
+
+  if (fetching) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <Header />
+        <main className="md:ml-72 p-4 md:p-8 flex justify-center items-center md:h-[calc(100vh-80px)] py-12">
+          <p className="text-muted-foreground">Loading target profile...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!lead && !fetching) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <Header />
+        <main className="md:ml-72 p-4 md:p-8 flex justify-center items-center md:h-[calc(100vh-80px)] py-12">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-bold">No Lead Selected</h2>
+            <p className="text-muted-foreground mt-2 mb-6">Select a lead from the Radar to launch a campaign.</p>
+            <button onClick={() => router.push('/radar')} className="px-6 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90">
+              Go to Radar
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const subject = `${lead.company_name} legacy vs. Online D2C potential`;
+  
+  // Construct dynamic email body based on DB hook
+  const hookText = lead.ai_hook_draft || "your strong local presence";
+  const contactName = lead.contact_name || "Founder";
+  
+  const emailBody = `Hi ${contactName},\n\nI was checking out ${lead.company_name} online today. Your local reputation and product variety is incredible.\n\nHowever, reading "${hookText}" on your site felt a bit clinical for such a rich, flavorful brand. You clearly have immense offline dominance, but your current online setup is likely leaving massive Direct-to-Consumer revenue on the table.\n\nAt Akarsa, we help heritage brands build premium visual stories that drive direct online sales. I'd love to show you how we could modernize your digital storefront without losing your legacy. Open to a brief chat next week?\n\nBest,\nRitik Sharma`;
 
   const handleSend = async () => {
     if (channel === 'email') {
-      // Free Zero-Cost Mailto Fallback
-      window.open(`mailto:founder@sureshnamkeen.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`, '_self');
+      const emailTarget = lead.email || 'hello@example.com';
+      window.open(`mailto:${emailTarget}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`, '_self');
       setIsSent(true);
       setTimeout(() => setIsSent(false), 3000);
       return;
     }
 
-    // WhatsApp Backend Trigger
     setLoading(true);
     try {
       const res = await fetch('/api/outreach/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: 'mock-1', templateName: 'akarsa_initial_contact', channel: 'whatsapp', testPhone })
+        body: JSON.stringify({ leadId: lead.id, templateName: 'akarsa_initial_contact', channel: 'whatsapp', testPhone })
       });
       
       const data = await res.json();
@@ -65,7 +128,6 @@ export default function Campaigns() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden relative"
         >
-          {/* Confetti / Success Overlay */}
           {isSent && (
             <motion.div 
               initial={{ opacity: 0 }}
@@ -90,7 +152,7 @@ export default function Campaigns() {
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" /> AI Draft Ready
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Target: Narendra Jain (Suresh Namkeen)</p>
+              <p className="text-sm text-muted-foreground mt-1">Target: {contactName} ({lead.company_name})</p>
             </div>
             
             <div className="flex items-center gap-2 bg-background border border-border p-1 rounded-xl">
@@ -126,12 +188,12 @@ export default function Campaigns() {
 
             {channel === 'whatsapp' && (
               <div className="space-y-1">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Test Phone Number (Optional)</label>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Test Phone Number (Optional Override)</label>
                 <input 
                   type="text" 
                   value={testPhone}
                   onChange={(e) => setTestPhone(e.target.value)}
-                  placeholder="e.g. 919876543210 (Include Country Code)" 
+                  placeholder={`e.g. 919876543210 (Target default: ${lead.phone || 'None'})`} 
                   className="w-full p-3 bg-secondary/50 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary text-sm"
                 />
               </div>
@@ -153,7 +215,7 @@ export default function Campaigns() {
               </button>
               <button 
                 onClick={handleSend}
-                disabled={loading}
+                disabled={loading || (channel === 'whatsapp' && !lead.phone && !testPhone)}
                 className="flex-2 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(147,51,234,0.4)] disabled:opacity-50"
               >
                 <Send className="w-4 h-4" /> {loading ? "Firing..." : `Send via ${channel === 'email' ? 'Email' : 'WhatsApp'}`}

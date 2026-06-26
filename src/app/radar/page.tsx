@@ -2,6 +2,7 @@
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, Mail, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -27,13 +28,8 @@ export default function Radar() {
       } else if (data && data.length > 0) {
         setLeads(data);
       } else {
-        // Fallback to initial mock data if table is empty (for UI testing)
-        setLeads([
-          { id: "mock-1", company_name: "Suresh Namkeen", contact_name: "Narendra Jain", phone: "919876543210", industry: "F&B", status: "New", ai_hook_draft: "Lab-like Hygiene" },
-          { id: "mock-2", company_name: "Ratan Sev Bhandar", contact_name: "P. Gelda", phone: "919876543211", industry: "F&B", status: "Contacted", ai_hook_draft: "500+ Varieties" },
-          { id: "mock-3", company_name: "Chemox ChemoPharma", contact_name: "Kishorbhai", phone: "919876543212", industry: "Pharma", status: "Won", ai_hook_draft: "IndiaMART Reliance" },
-          { id: "mock-4", company_name: "Indore Sweets Hub", contact_name: "Rahul Gupta", phone: "919876543213", industry: "F&B", status: "New", ai_hook_draft: "No Website" },
-        ]);
+        // Fallback to empty state if no leads
+        setLeads([]);
       }
       setLoading(false);
     }
@@ -155,9 +151,9 @@ export default function Radar() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <button className="p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer">
+                      <Link href={`/campaigns?leadId=${lead.id}`} className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer">
                         <Mail className="w-4 h-4" />
-                      </button>
+                      </Link>
                     </td>
                   </motion.tr>
                 ))}
