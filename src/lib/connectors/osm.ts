@@ -34,6 +34,7 @@ export class OSMOverpassConnector implements Connector {
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
       headers: {
+        'User-Agent': 'akarsa-lead-hq/1.0 (contact@akarsa.com)',
         'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'application/json'
       },
