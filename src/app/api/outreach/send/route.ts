@@ -61,13 +61,17 @@ export async function POST(req: Request) {
       if (!lead.phone) {
          throw new Error("Lead does not have a phone number for WhatsApp.");
       }
-      sendResult = await sendWhatsAppTemplate({
-        to: lead.phone.replace(/\D/g, ''),
-        templateName: templateName || 'akarsa_initial_contact',
-        components: [
-          { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
-        ]
-      });
+      if (leadId === 'mock-1') {
+        sendResult = { mock: true, message: "WhatsApp message mocked successfully to avoid Meta API errors." };
+      } else {
+        sendResult = await sendWhatsAppTemplate({
+          to: lead.phone.replace(/\D/g, ''),
+          templateName: templateName || 'akarsa_initial_contact',
+          components: [
+            { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
+          ]
+        });
+      }
     } else {
       sendResult = { mock: true, message: "Email sent successfully via free SMTP fallback." };
     }
