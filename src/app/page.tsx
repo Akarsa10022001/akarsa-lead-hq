@@ -202,7 +202,7 @@ export default function Home() {
                       borderRadius: '12px',
                       fontSize: '13px'
                     }}
-                    formatter={(value: any, name: string) => {
+                    formatter={(value: any, name: any) => {
                       const labels: any = { predicted: 'Predicted Leads', low: 'Low Estimate', high: 'High Estimate' };
                       return [value, labels[name] || name];
                     }}
