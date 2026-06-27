@@ -163,12 +163,12 @@ function CampaignsContent() {
       <Sidebar />
       <Header />
       
-      <main className="md:ml-72 p-4 md:p-8 flex justify-center items-center md:h-[calc(100vh-80px)] py-12">
+      <main className="md:ml-72 p-4 md:p-8 flex justify-center items-start min-h-[calc(100vh-80px)] py-8">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden relative"
+          className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden relative my-auto"
         >
           {isSent && (
             <motion.div 
