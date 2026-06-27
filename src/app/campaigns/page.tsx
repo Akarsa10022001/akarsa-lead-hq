@@ -141,6 +141,9 @@ function CampaignsContent() {
       const data = await res.json();
       if (data.success || data.error === 'Lead not found') {
         setIsSent(true);
+        if (data.provider_response?.type === 'wa.me') {
+          window.open(data.provider_response.url, '_blank');
+        }
         setTimeout(() => setIsSent(false), 3000);
       } else {
         alert("Failed to send sequence: " + data.error);

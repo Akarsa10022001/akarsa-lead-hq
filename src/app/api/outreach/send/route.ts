@@ -52,13 +52,12 @@ export async function POST(req: Request) {
       
       const phoneToSend = testPhone ? testPhone.replace(/\D/g, '') : lead.phone.replace(/\D/g, '');
 
-      sendResult = await sendWhatsAppTemplate({
-        to: phoneToSend,
-        templateName: templateName || 'akarsa_initial_contact',
-        components: [
-          { type: "body", parameters: [{ type: "text", text: lead.contact_name || lead.company_name }] }
-        ]
-      });
+      // Instead of relying on the Meta Cloud API (which requires approved templates and expiring tokens),
+      // we generate a direct wa.me link for the prospector to send the personalized draft directly.
+      sendResult = {
+        type: "wa.me",
+        url: `https://wa.me/${phoneToSend}?text=${encodeURIComponent(emailBody)}`
+      };
     } else if (channel === 'email') {
       if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
         throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not configured in environment variables.");
