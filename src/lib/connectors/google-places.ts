@@ -20,6 +20,8 @@ export class GooglePlacesConnector implements Connector {
     const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query.location)}&key=${apiKey}`;
     const geoRes = await fetch(geocodeUrl);
     const geoData = await geoRes.json();
+    
+    console.log("[GooglePlaces Debug] Geocode Response:", geoData);
 
     if (!geoData.results || geoData.results.length === 0) {
       console.warn(`[GooglePlaces] Could not geocode location: ${query.location}`);
