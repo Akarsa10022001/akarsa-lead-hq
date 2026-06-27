@@ -243,18 +243,37 @@ export async function POST(req: Request) {
       }
 
       // ====================================================================
-      // Score Calculation
+      // Score Calculation & Quality Filtering
       // ====================================================================
-      let score = 30; // Base score
-      if (normalized.phone) score += 20;
+      let score = 0; 
+      
+      // Phone is extremely valuable for WhatsApp outreach
+      if (normalized.phone) score += 30;
+      
+      // Domain presence is standard
       if (normalized.domain) score += 10;
-      if (discoveredEmail) score += 15;
-      if (emailVerified) score += 10;
-      if (allEvidence.find(e => e.signal_type === 'no_website')) score += 15; // High value client signal
+      else if (allEvidence.find(e => e.signal_type === 'no_website')) score += 20; // High intent
+      
+      // Email source weighting
+      if (discoveredEmail) {
+        if (emailSource === 'hunter') score += 40; // Super high quality, verified by premium DB
+        else if (emailSource === 'website_scrape') score += 15; // Medium quality
+        else if (emailSource === 'pattern_guess' && emailVerified) score += 10; // Guessed but MX verified
+        else score += 5;
+      }
+      
+      // Google places data is usually richer than OSM fallback
+      if (primarySource === 'google_places') score += 15;
 
       let grade = 'C';
       if (score >= 80) grade = 'A';
-      else if (score >= 60) grade = 'B';
+      else if (score >= 65) grade = 'B';
+
+      // THE BOUNCER: Reject low quality leads (e.g., no email, no phone, or just a domain)
+      if (score < 65) {
+        console.log(`[Discovery]   ✗ Rejected lead: ${normalized.company_name} (Score ${score} < 65)`);
+        continue; // Skip DB insertion entirely
+      }
 
       // ====================================================================
       // AI Hook Generation

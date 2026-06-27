@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Mail, ChevronDown, Edit2 } from "lucide-react";
+import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -53,6 +53,37 @@ export default function Radar() {
       } else {
         alert("Failed to update phone number.");
       }
+    }
+  };
+
+  const handleMarkReplied = async (lead: any) => {
+    if (confirm(`Mark WhatsApp conversation with ${lead.company_name} as Replied? This will log it in your Priority Inbox.`)) {
+      // 1. Update Lead Status
+      await supabase.from('leads').update({ status: 'Replied' }).eq('id', lead.id);
+      
+      // 2. Find the sequence
+      const { data: sequence } = await supabase
+        .from('outreach_sequences')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (sequence) {
+        // 3. Insert fake inbound message so it appears in Inbox
+        await supabase.from('outreach_messages').insert({
+          sequence_id: sequence.id,
+          step_number: 1,
+          channel: 'whatsapp',
+          draft_content: '(Logged Manually from WhatsApp)',
+          sent_at: new Date().toISOString(),
+          status: 'received'
+        });
+      }
+
+      setLeads(leads.map(l => l.id === lead.id ? { ...l, status: 'Replied' } : l));
+      alert("Successfully logged to Inbox!");
     }
   };
 
@@ -163,6 +194,15 @@ export default function Radar() {
                       </span>
                     </td>
                     <td className="p-4 text-right flex justify-end gap-2">
+                      {lead.status === 'Contacted' && (
+                        <button 
+                          onClick={() => handleMarkReplied(lead)}
+                          className="inline-block p-2 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                          title="Mark as Replied (WhatsApp)"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      )}
                       <button 
                         onClick={() => handleEditLead(lead)}
                         className="inline-block p-2 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
