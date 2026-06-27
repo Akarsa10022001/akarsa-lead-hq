@@ -1,0 +1,138 @@
+{
+  "model": "orthogonal_matching_pursuit",
+  "version": "1.0.0",
+  "trained_on": "synthetic_b2b_leads_5000",
+  "accuracy": 0.758,
+  "active_features": 7,
+  "total_features": 17,
+  "threshold": 65,
+  "grade_boundaries": {
+    "A": 80,
+    "B": 65,
+    "C": 0
+  },
+  "weights": {
+    "has_phone": {
+      "raw_coefficient": 0.101452,
+      "scoring_points": 50.0,
+      "direction": "positive"
+    },
+    "responded_to_outreach": {
+      "raw_coefficient": 0.073265,
+      "scoring_points": 36.11,
+      "direction": "positive"
+    },
+    "email_verified": {
+      "raw_coefficient": 0.065862,
+      "scoring_points": 32.46,
+      "direction": "positive"
+    },
+    "email_source_quality": {
+      "raw_coefficient": 0.062059,
+      "scoring_points": 30.59,
+      "direction": "positive"
+    },
+    "has_website": {
+      "raw_coefficient": -0.053787,
+      "scoring_points": -26.51,
+      "direction": "negative"
+    },
+    "source_google_places": {
+      "raw_coefficient": 0.05182,
+      "scoring_points": 25.54,
+      "direction": "positive"
+    },
+    "has_email": {
+      "raw_coefficient": 0.04294,
+      "scoring_points": 21.16,
+      "direction": "positive"
+    },
+    "website_has_ssl": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "social_media_presence": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "google_rating": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "review_count": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "years_in_business": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "source_osm": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "time_to_respond_hours": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "industry_restaurant": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "industry_retail": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    },
+    "industry_services": {
+      "raw_coefficient": 0.0,
+      "scoring_points": 0.0,
+      "direction": "eliminated"
+    }
+  },
+  "feature_importance_ranked": [
+    {
+      "feature": "has_phone",
+      "points": 50.0,
+      "direction": "positive"
+    },
+    {
+      "feature": "responded_to_outreach",
+      "points": 36.11,
+      "direction": "positive"
+    },
+    {
+      "feature": "email_verified",
+      "points": 32.46,
+      "direction": "positive"
+    },
+    {
+      "feature": "email_source_quality",
+      "points": 30.59,
+      "direction": "positive"
+    },
+    {
+      "feature": "has_website",
+      "points": -26.51,
+      "direction": "negative"
+    },
+    {
+      "feature": "source_google_places",
+      "points": 25.54,
+      "direction": "positive"
+    },
+    {
+      "feature": "has_email",
+      "points": 21.16,
+      "direction": "positive"
+    }
+  ]
+}

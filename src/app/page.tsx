@@ -3,9 +3,11 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
-import { Users, Mail, CheckCircle2, TrendingUp, Loader2 } from "lucide-react";
+import { Users, Mail, CheckCircle2, TrendingUp, Loader2, BrainCircuit } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import forecastData from '../../ml/forecasts/lead_forecast.json';
 
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
@@ -136,6 +138,82 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+
+          {/* 30-Day AI Forecast Chart */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="mb-8 p-6 rounded-2xl bg-card border border-border"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <BrainCircuit className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">30-Day Lead Pipeline Forecast</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Powered by ARIMA · {forecastData.summary.predicted_total_30d} predicted leads · Avg {forecastData.summary.predicted_avg_daily}/day
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full border border-primary/20">
+                AI Engine v1.0
+              </span>
+            </div>
+            <div className="w-full h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={forecastData.forecast.map((d: any) => ({
+                  date: d.date.slice(5), // MM-DD format
+                  predicted: d.predicted_leads,
+                  low: d.confidence_low,
+                  high: d.confidence_high,
+                  dayName: d.day_name
+                }))}>
+                  <defs>
+                    <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={4}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={30}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '12px',
+                      fontSize: '13px'
+                    }}
+                    formatter={(value: any, name: string) => {
+                      const labels: any = { predicted: 'Predicted Leads', low: 'Low Estimate', high: 'High Estimate' };
+                      return [value, labels[name] || name];
+                    }}
+                  />
+                  <Area type="monotone" dataKey="high" stroke="none" fill="url(#colorConfidence)" />
+                  <Area type="monotone" dataKey="low" stroke="none" fill="url(#colorConfidence)" />
+                  <Area type="monotone" dataKey="predicted" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#colorPredicted)" dot={false} activeDot={{ r: 5, strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Activity Feed */}
