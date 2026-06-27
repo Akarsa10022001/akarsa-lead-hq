@@ -28,7 +28,7 @@ export default function PrivacyPolicy() {
 
           <section>
             <h2 className="text-xl font-semibold mb-2 text-foreground">5. Contact Us</h2>
-            <p>If you have questions about this privacy policy or wish to opt-out of communications, please contact us at: beakarsa@gmail.com.</p>
+            <p>If you have questions about this privacy policy or wish to opt-out of communications, please contact us at: be@akarsaone.xyz.</p>
           </section>
         </div>
       </div>

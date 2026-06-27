@@ -17,7 +17,7 @@ export class OSMOverpassConnector implements Connector {
     const searchQuery = `${primaryTag} in ${query.location}`;
     
     const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=15&extratags=1`, {
-      headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (contact@akarsa.com)' }
+      headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (be@akarsaone.xyz)' }
     });
     
     if (!nomResponse.ok) {
