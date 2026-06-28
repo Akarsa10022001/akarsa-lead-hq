@@ -106,7 +106,9 @@ export async function POST(req: Request) {
     // ====================================================================
     // Process each lead through the enrichment pipeline
     // ====================================================================
-    const leadsToProcess = rawLeads.slice(0, config.maxLeads || 20);
+    // Vercel Serverless Functions will timeout if we process too many sequentially.
+    // Defaulting to 5 leads per scan to ensure it completes under 10 seconds.
+    const leadsToProcess = rawLeads.slice(0, config.maxLeads || 5);
     const results: any[] = [];
     const stats = {
       total_discovered: rawLeads.length,
