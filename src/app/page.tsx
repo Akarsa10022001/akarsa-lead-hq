@@ -78,16 +78,31 @@ export default function Home() {
     }
   };
 
+  const [scanLocation, setScanLocation] = useState("");
+
   const handleManualScan = async () => {
     setIsScanning(true);
     try {
-      const res = await fetch('/api/cron/discovery', { method: 'POST' });
+      const payload: any = {};
+      if (scanLocation.trim() !== "") {
+        payload.location = scanLocation.trim();
+      }
+
+      const res = await fetch('/api/cron/discovery', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       const data = await res.json();
       if (data.success) {
-        alert(`Scan complete! Found ${data.leads?.length || 0} leads.`);
+        let msg = `Scan complete! Saved ${data.leads?.length || 0} leads.`;
+        if (data.pipeline_log) {
+          msg += `\n\nPipeline Stats:\nFound: ${data.pipeline_log.fetched_from_source}\nAfter verify: ${data.pipeline_log.after_verification}\nSaved: ${data.pipeline_log.inserted_to_db}`;
+        }
+        alert(msg);
         fetchDashboardData(); // Refresh metrics
       } else {
-        alert("Scan failed: " + data.error);
+        alert("Scan failed: " + (data.message || data.error || 'Unknown error'));
       }
     } catch (e) {
       alert("Error triggering scan.");
@@ -274,14 +289,22 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-
-              <button 
-                onClick={handleManualScan}
-                disabled={isScanning}
-                className="w-full py-3 flex justify-center items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(147,51,234,0.3)] disabled:opacity-50 disabled:shadow-none"
-              >
-                {isScanning ? <><Loader2 className="w-5 h-5 animate-spin" /> Scanning OSM...</> : "Launch Manual Scan"}
-              </button>
+              <div>
+                <input
+                  type="text"
+                  placeholder="E.g. Dubai, UAE (Leave blank for auto)"
+                  value={scanLocation}
+                  onChange={(e) => setScanLocation(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm"
+                />
+                <button 
+                  onClick={handleManualScan}
+                  disabled={isScanning}
+                  className="w-full py-3 flex justify-center items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(147,51,234,0.3)] disabled:opacity-50 disabled:shadow-none"
+                >
+                  {isScanning ? <><Loader2 className="w-5 h-5 animate-spin" /> Scanning...</> : "Launch Manual Scan"}
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>

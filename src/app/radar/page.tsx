@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare } from "lucide-react";
+import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -36,13 +36,27 @@ export default function Radar() {
     fetchLeads();
   }, []);
 
+  const excludedStatuses = ['Emailed', 'Hot', 'Won', 'Dead', 'Replied', 'Contacted'];
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           lead.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           lead.industry?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter ? lead.status === statusFilter : true;
+    const matchesStatus = statusFilter 
+      ? lead.status === statusFilter 
+      : !excludedStatuses.includes(lead.status);
     return matchesSearch && matchesStatus;
   });
+
+  const handleDeleteLead = async (leadId: string, companyName: string) => {
+    if (confirm(`Are you sure you want to delete ${companyName}? This action cannot be undone.`)) {
+      const { error } = await supabase.from('leads').delete().eq('id', leadId);
+      if (!error) {
+        setLeads(leads.filter(l => l.id !== leadId));
+      } else {
+        alert("Failed to delete lead.");
+      }
+    }
+  };
 
   const handleEditLead = async (lead: any) => {
     const newPhone = window.prompt("Enter new phone number (include country code, e.g., 919876543210):", lead.phone || "");
@@ -194,23 +208,34 @@ export default function Radar() {
                       </span>
                     </td>
                     <td className="p-4 text-right flex justify-end gap-2">
+                      <button 
+                        onClick={() => handleDeleteLead(lead.id, lead.company_name)}
+                        className="inline-block p-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                        title="Delete Lead"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                       {lead.status === 'Contacted' && (
                         <button 
                           onClick={() => handleMarkReplied(lead)}
                           className="inline-block p-2 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                          title="Mark as Replied (WhatsApp)"
+                          title="Mark WhatsApp Replied"
                         >
                           <MessageSquare className="w-4 h-4" />
                         </button>
                       )}
                       <button 
                         onClick={() => handleEditLead(lead)}
-                        className="inline-block p-2 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                        title="Edit Phone Number"
+                        className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                        title="Edit Phone"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <Link href={`/campaigns?leadId=${lead.id}`} className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Launch Campaign">
+                      <Link 
+                        href={`/campaigns?lead=${lead.id}`}
+                        className="inline-block p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all opacity-0 group-hover:opacity-100"
+                        title="Start Campaign"
+                      >
                         <Mail className="w-4 h-4" />
                       </Link>
                     </td>

@@ -25,22 +25,38 @@ interface DiscoveryConfig {
 }
 
 const DEFAULT_CONFIG: DiscoveryConfig = {
-  location: 'Indore',
+  location: '', // Will be dynamic
   businessType: 'restaurant',
   osmTags: ['amenity=restaurant', 'amenity=cafe'],
-  maxLeads: 10,
+  maxLeads: parseInt(process.env.SCAN_LIMIT || '20', 10),
 };
 
 export async function POST(req: Request) {
   const startTime = Date.now();
   
+  // Debug log counts
+  const pipelineLog = {
+    fetched_from_source: 0,
+    after_location_filter: 0,
+    after_verification: 0,
+    after_dedupe: 0,
+    inserted_to_db: 0
+  };
+
   try {
     // Allow config override from request body
     let config = DEFAULT_CONFIG;
     try {
       const body = await req.json();
       if (body.location) config = { ...config, ...body };
+      if (body.limit) config.maxLeads = body.limit;
     } catch { /* Use defaults if no body */ }
+
+    // If location is completely blank, pick a random popular area as a fallback for the "Auto" mode
+    if (!config.location || config.location.trim() === '') {
+      const autoLocations = ['Dubai, UAE', 'Pune, India', 'Indore, India', 'Mumbai, India', 'London, UK'];
+      config.location = autoLocations[Math.floor(Math.random() * autoLocations.length)];
+    }
 
     console.log(`[Discovery] Starting pipeline for "${config.businessType}" in "${config.location}"...`);
 
@@ -82,11 +98,14 @@ export async function POST(req: Request) {
         stats: { duration_ms: Date.now() - startTime }
       });
     }
+    
+    pipelineLog.fetched_from_source = rawLeads.length;
+    pipelineLog.after_location_filter = rawLeads.length; // Same since the API handles location
 
     // ====================================================================
     // Process each lead through the enrichment pipeline
     // ====================================================================
-    const leadsToProcess = rawLeads.slice(0, config.maxLeads || 10);
+    const leadsToProcess = rawLeads.slice(0, config.maxLeads || 20);
     const results: any[] = [];
     const stats = {
       total_discovered: rawLeads.length,
@@ -116,6 +135,8 @@ export async function POST(req: Request) {
         stats.skipped_duplicate++;
         continue;
       }
+      
+      pipelineLog.after_dedupe++;
 
       // Save raw record
       const externalId = (rawRecord.place_id || rawRecord.id || Date.now()).toString();
@@ -279,11 +300,15 @@ export async function POST(req: Request) {
       if (score >= 80) grade = 'A';
       else if (score >= 65) grade = 'B';
 
-      // THE BOUNCER: OMP threshold — reject leads scoring below 65
-      if (score < 65) {
-        console.log(`[Discovery]   ✗ OMP Rejected: ${normalized.company_name} (Score ${score} < 65)`);
+      // THE BOUNCER: Only reject if we have absolutely no way to contact or research them
+      // Keep any lead that has a phone OR a website OR an email
+      const hasContactInfo = normalized.phone || normalized.domain || discoveredEmail;
+      if (!hasContactInfo) {
+        console.log(`[Discovery]   ✗ Rejected: ${normalized.company_name} (No contact info or website found)`);
         continue;
       }
+      
+      pipelineLog.after_verification++;
 
       // ====================================================================
       // AI Hook Generation
@@ -327,6 +352,8 @@ export async function POST(req: Request) {
         console.warn(`[Discovery] Failed to insert lead: ${leadError.message}`);
         continue;
       }
+      
+      pipelineLog.inserted_to_db++;
 
       // Insert evidence/signals
       for (const ev of allEvidence) {
@@ -347,17 +374,15 @@ export async function POST(req: Request) {
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[Discovery] Pipeline complete in ${duration}ms. Processed ${stats.processed} leads.`);
+    console.log(`[Discovery] Pipeline complete in ${duration}ms. Processed ${results.length} leads.`);
+    console.log(`[Discovery] Stage Log: fetched(${pipelineLog.fetched_from_source}) -> after_loc(${pipelineLog.after_location_filter}) -> after_dedupe(${pipelineLog.after_dedupe}) -> after_verify(${pipelineLog.after_verification}) -> db_insert(${pipelineLog.inserted_to_db})`);
 
     return NextResponse.json({
       success: true,
-      message: `Discovery complete. Found ${stats.processed} leads with ${stats.phones_found} phone numbers and ${stats.emails_from_website + stats.emails_from_pattern + stats.emails_from_hunter} emails.`,
+      message: `Pipeline finished. Saved ${results.length} new leads.`,
       leads: results,
-      stats: {
-        ...stats,
-        duration_ms: duration,
-        primary_source: primarySource,
-      }
+      stats: { ...stats, duration_ms: duration },
+      pipeline_log: pipelineLog
     });
 
   } catch (error: any) {
