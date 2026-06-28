@@ -105,7 +105,7 @@ export default function Home() {
       if (data.success) {
         let msg = `Scan complete! Saved ${data.leads?.length || 0} leads.`;
         if (data.pipeline_log) {
-          msg += `\n\nPipeline Stats:\nFound: ${data.pipeline_log.fetched_from_source}\nAfter verify: ${data.pipeline_log.after_verification}\nSaved: ${data.pipeline_log.inserted_to_db}`;
+          msg += `\n\nPipeline Stats:\nFound: ${data.pipeline_log.fetched_from_source}\nAfter dedupe: ${data.pipeline_log.after_dedupe}\nAfter verify: ${data.pipeline_log.after_verification}\nSaved: ${data.pipeline_log.inserted_to_db}`;
         }
         alert(msg);
         fetchDashboardData(); // Refresh metrics

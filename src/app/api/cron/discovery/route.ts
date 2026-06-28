@@ -119,9 +119,11 @@ export async function POST(req: Request) {
     // ====================================================================
     // Process each lead through the enrichment pipeline
     // ====================================================================
-    // Vercel Serverless Functions will timeout if we process too many sequentially.
-    // Defaulting to 5 leads per scan to ensure it completes under 10 seconds.
-    const leadsToProcess = rawLeads.slice(0, config.maxLeads || 5);
+    // Shuffle the rawLeads so we get different businesses every time we scan the same area
+    const shuffledLeads = rawLeads.sort(() => 0.5 - Math.random());
+    
+    // Process up to 10 leads concurrently (scraper is heavily optimized)
+    const leadsToProcess = shuffledLeads.slice(0, config.maxLeads || 10);
     const results: any[] = [];
     const stats = {
       total_discovered: rawLeads.length,

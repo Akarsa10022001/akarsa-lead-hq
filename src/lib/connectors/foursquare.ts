@@ -28,7 +28,7 @@ export class FoursquareConnector implements Connector {
     const url = new URL('https://api.foursquare.com/v3/places/search');
     url.searchParams.append('near', query.location);
     url.searchParams.append('categories', categoryId);
-    url.searchParams.append('limit', '10');
+    url.searchParams.append('limit', '50');
     // Request specific fields to minimize payload and ensure we get what we need
     url.searchParams.append('fields', 'fsq_id,name,location,categories,tel,website,rating');
 
