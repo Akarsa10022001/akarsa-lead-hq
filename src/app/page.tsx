@@ -93,7 +93,15 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
+      
+      let data;
+      const rawText = await res.text();
+      try {
+        data = JSON.parse(rawText);
+      } catch (e) {
+        throw new Error(`Server returned non-JSON response (Status ${res.status}): ` + rawText.substring(0, 100));
+      }
+
       if (data.success) {
         let msg = `Scan complete! Saved ${data.leads?.length || 0} leads.`;
         if (data.pipeline_log) {
@@ -104,8 +112,8 @@ export default function Home() {
       } else {
         alert("Scan failed: " + (data.message || data.error || 'Unknown error'));
       }
-    } catch (e) {
-      alert("Error triggering scan.");
+    } catch (e: any) {
+      alert("Error triggering scan: " + e.message);
     } finally {
       setIsScanning(false);
     }
