@@ -134,7 +134,7 @@ export async function POST(req: Request) {
       phones_found: 0,
     };
 
-    for (const rawRecord of leadsToProcess) {
+    await Promise.all(leadsToProcess.map(async (rawRecord) => {
       // Normalize the raw data
       let connector = googleConnector;
       if (primarySource === 'foursquare') connector = foursquareConnector as any;
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
 
       if (existingLead) {
         stats.skipped_duplicate++;
-        continue;
+        return;
       }
       
       pipelineLog.after_dedupe++;
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
 
       if (rawError) {
         console.warn(`[Discovery] Failed to save raw record: ${rawError.message}`);
-        continue;
+        return;
       }
 
       // ====================================================================
@@ -323,7 +323,7 @@ export async function POST(req: Request) {
       const hasContactInfo = normalized.phone || normalized.domain || discoveredEmail;
       if (!hasContactInfo) {
         console.log(`[Discovery]   ✗ Rejected: ${normalized.company_name} (No contact info or website found)`);
-        continue;
+        return;
       }
       
       pipelineLog.after_verification++;
@@ -368,7 +368,7 @@ export async function POST(req: Request) {
 
       if (leadError) {
         console.warn(`[Discovery] Failed to insert lead: ${leadError.message}`);
-        continue;
+        return;
       }
       
       pipelineLog.inserted_to_db++;
@@ -389,7 +389,7 @@ export async function POST(req: Request) {
       results.push(lead);
       stats.processed++;
       console.log(`[Discovery] ✓ Lead saved: ${lead.company_name} | Phone: ${lead.phone || 'N/A'} | Email: ${discoveredEmail || 'N/A'} (${emailSource})`);
-    }
+    }));
 
     const duration = Date.now() - startTime;
     console.log(`[Discovery] Pipeline complete in ${duration}ms. Processed ${results.length} leads.`);
