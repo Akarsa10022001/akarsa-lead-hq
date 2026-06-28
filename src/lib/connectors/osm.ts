@@ -14,18 +14,50 @@ export class OSMOverpassConnector implements Connector {
       if (match) primaryTag = match[1];
     }
 
-    const searchQuery = `${primaryTag} in ${query.location}`;
+    let currentLocation = query.location;
+    let allResults: any[] = [];
     
-    const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=15&extratags=1`, {
-      headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (be@akarsaone.xyz)' }
-    });
-    
-    if (!nomResponse.ok) {
-      throw new Error(`OSM Nominatim Error: ${nomResponse.status}`);
+    // Auto-expansion loop: if we find < 5 results, widen the search net by dropping the most specific local term
+    while (currentLocation && allResults.length < 5) {
+      const searchQuery = `${primaryTag} in ${currentLocation.trim()}`;
+      
+      const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=15&extratags=1`, {
+        headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (be@akarsaone.xyz)' }
+      });
+      
+      if (!nomResponse.ok) {
+        throw new Error(`OSM Nominatim Error: ${nomResponse.status}`);
+      }
+
+      const data = await nomResponse.json();
+      allResults = [...allResults, ...data];
+      
+      // Deduplicate results based on osm_id
+      const uniqueResults = [];
+      const seen = new Set();
+      for (const item of allResults) {
+        if (!seen.has(item.osm_id)) {
+          seen.add(item.osm_id);
+          uniqueResults.push(item);
+        }
+      }
+      allResults = uniqueResults;
+      
+      if (allResults.length >= 5) {
+        break; // We have enough leads
+      }
+      
+      // Widen the location by removing the first part before a comma
+      const parts = currentLocation.split(',');
+      if (parts.length > 1) {
+        currentLocation = parts.slice(1).join(',').trim();
+        console.log(`[Discovery] OSM returned < 5 leads. Auto-expanding search net to: ${currentLocation}`);
+      } else {
+        break; // Cannot widen further
+      }
     }
 
-    const data = await nomResponse.json();
-    return data;
+    return allResults;
   }
 
   async fetchDetail(recordId: string): Promise<any> {

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { GooglePlacesConnector } from '@/lib/connectors/google-places';
 import { OSMOverpassConnector } from '@/lib/connectors/osm';
+import { FoursquareConnector } from '@/lib/connectors/foursquare';
+import { OpenCorporatesConnector } from '@/lib/connectors/opencorporates';
 import { CustomTechConnector } from '@/lib/connectors/tech';
 import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scraper';
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
@@ -68,7 +70,9 @@ export async function POST(req: Request) {
     let primarySource = 'google_places';
 
     const googleConnector = new GooglePlacesConnector();
+    const foursquareConnector = new FoursquareConnector();
     const osmConnector = new OSMOverpassConnector();
+    const openCorpConnector = new OpenCorporatesConnector();
 
     // Try Google Places first
     if (process.env.GOOGLE_PLACES_API_KEY) {
@@ -80,7 +84,18 @@ export async function POST(req: Request) {
       console.log(`[Discovery] Google Places returned ${rawLeads.length} results.`);
     }
 
-    // Fallback to OSM if Google Places returned nothing or isn't configured
+    // Fallback to Foursquare if Google Places returned nothing
+    if (rawLeads.length === 0 && process.env.FOURSQUARE_API_KEY) {
+      console.log('[Discovery] Stage 1: Falling back to Foursquare API...');
+      primarySource = 'foursquare';
+      rawLeads = await foursquareConnector.search({
+        location: config.location,
+        type: config.businessType,
+      });
+      console.log(`[Discovery] Foursquare returned ${rawLeads.length} results.`);
+    }
+
+    // Fallback to OSM if Foursquare returned nothing or isn't configured
     if (rawLeads.length === 0) {
       console.log('[Discovery] Stage 1: Falling back to OSM Nominatim...');
       primarySource = 'osm_overpass';
@@ -123,7 +138,9 @@ export async function POST(req: Request) {
 
     for (const rawRecord of leadsToProcess) {
       // Normalize the raw data
-      const connector = primarySource === 'google_places' ? googleConnector : osmConnector;
+      let connector = googleConnector;
+      if (primarySource === 'foursquare') connector = foursquareConnector as any;
+      if (primarySource === 'osm_overpass') connector = osmConnector as any;
       const normalized = connector.normalize(rawRecord);
 
       // Check for duplicates
@@ -158,6 +175,28 @@ export async function POST(req: Request) {
       if (rawError) {
         console.warn(`[Discovery] Failed to save raw record: ${rawError.message}`);
         continue;
+      }
+
+      // ====================================================================
+      // STAGE 1.5: OpenCorporates Enrichment (Legal Entity Verification)
+      // ====================================================================
+      let legalEntityName = normalized.company_name;
+      // We only run this enrichment if it's a B2B search or we have an OPENCORPORATES_API_TOKEN,
+      // but the connector handles falling back to the free public tier.
+      if (!normalized.domain && normalized.company_name.length > 3) {
+        console.log(`[Discovery] Stage 1.5: Enriching company name via OpenCorporates for "${normalized.company_name}"...`);
+        const ocResults = await openCorpConnector.search({ companyName: normalized.company_name });
+        if (ocResults && ocResults.length > 0) {
+          const matched = ocResults[0].company;
+          legalEntityName = matched.name;
+          console.log(`[Discovery]   ✓ Found legal entity: ${legalEntityName}`);
+          
+          if (!normalized.domain && matched.opencorporates_url) {
+            // While OC doesn't reliably return a domain directly in the search results without scraping, 
+            // the name normalization itself significantly boosts Hunter.io hit rates.
+            normalized.company_name = legalEntityName;
+          }
+        }
       }
 
       // ====================================================================
