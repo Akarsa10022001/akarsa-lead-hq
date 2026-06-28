@@ -49,7 +49,7 @@ function isUsefulEmail(email: string): boolean {
 async function fetchPage(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
+    const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
 
     const res = await fetch(url, {
       signal: controller.signal,
@@ -123,24 +123,24 @@ export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
   // Remove trailing slash
   baseUrl = baseUrl.replace(/\/+$/, '');
 
-  // Try each contact path
-  for (const path of CONTACT_PATHS) {
+  // Try each contact path concurrently to avoid hanging the serverless function
+  const fetchPromises = CONTACT_PATHS.slice(0, 3).map(async (path) => {
     const url = path === '/' ? baseUrl : `${baseUrl}${path}`;
-
     const html = await fetchPage(url);
-    if (!html) continue;
-
-    const found = extractEmailsFromHTML(html);
-    if (found.length > 0) {
-      sourcePages.push(url);
-      found.forEach(e => allEmails.add(e));
+    if (html) {
+      const found = extractEmailsFromHTML(html);
+      return { url, found };
     }
+    return null;
+  });
 
-    // Don't hammer the server — small delay between pages
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // If we already found emails, no need to check more pages
-    if (allEmails.size >= 3) break;
+  const results = await Promise.all(fetchPromises);
+  
+  for (const res of results) {
+    if (res && res.found.length > 0) {
+      sourcePages.push(res.url);
+      res.found.forEach(e => allEmails.add(e));
+    }
   }
 
   return {
