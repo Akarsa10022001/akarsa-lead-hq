@@ -235,7 +235,7 @@ export default function Radar() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <Link 
-                        href={`/campaigns?lead=${lead.id}`}
+                        href={`/campaigns?leadId=${lead.id}`}
                         className="inline-block p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all opacity-0 group-hover:opacity-100"
                         title="Start Campaign"
                       >
