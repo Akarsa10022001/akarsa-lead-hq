@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase/client';
 import { GooglePlacesConnector } from '@/lib/connectors/google-places';
 import { OSMOverpassConnector } from '@/lib/connectors/osm';
 import { FoursquareConnector } from '@/lib/connectors/foursquare';
-import { OpenCorporatesConnector } from '@/lib/connectors/opencorporates';
 import { CustomTechConnector } from '@/lib/connectors/tech';
 import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scraper';
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
@@ -72,7 +71,6 @@ export async function POST(req: Request) {
     const googleConnector = new GooglePlacesConnector();
     const foursquareConnector = new FoursquareConnector();
     const osmConnector = new OSMOverpassConnector();
-    const openCorpConnector = new OpenCorporatesConnector();
 
     // Try Google Places first
     if (process.env.GOOGLE_PLACES_API_KEY) {
@@ -175,28 +173,6 @@ export async function POST(req: Request) {
       if (rawError) {
         console.warn(`[Discovery] Failed to save raw record: ${rawError.message}`);
         continue;
-      }
-
-      // ====================================================================
-      // STAGE 1.5: OpenCorporates Enrichment (Legal Entity Verification)
-      // ====================================================================
-      let legalEntityName = normalized.company_name;
-      // We only run this enrichment if it's a B2B search or we have an OPENCORPORATES_API_TOKEN,
-      // but the connector handles falling back to the free public tier.
-      if (!normalized.domain && normalized.company_name.length > 3) {
-        console.log(`[Discovery] Stage 1.5: Enriching company name via OpenCorporates for "${normalized.company_name}"...`);
-        const ocResults = await openCorpConnector.search({ companyName: normalized.company_name });
-        if (ocResults && ocResults.length > 0) {
-          const matched = ocResults[0].company;
-          legalEntityName = matched.name;
-          console.log(`[Discovery]   ✓ Found legal entity: ${legalEntityName}`);
-          
-          if (!normalized.domain && matched.opencorporates_url) {
-            // While OC doesn't reliably return a domain directly in the search results without scraping, 
-            // the name normalization itself significantly boosts Hunter.io hit rates.
-            normalized.company_name = legalEntityName;
-          }
-        }
       }
 
       // ====================================================================
