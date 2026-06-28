@@ -67,66 +67,6 @@ export default function Sidebar() {
           </span>
         </Link>
       </nav>
-
-      {/* Gamification Module: XP & Level */}
-      <div className="p-6 border-t border-border/50 bg-secondary/30 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-        
-        <div className="flex justify-between items-end mb-2 relative z-10">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Current Rank</p>
-            <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-              <Award className="w-4 h-4 text-primary" /> Novice Prospector
-            </h3>
-          </div>
-          <span className="text-xs font-mono text-primary font-bold">Lvl 4</span>
-        </div>
-        
-        {/* XP Bar */}
-        <div className="h-2 w-full bg-background rounded-full mt-3 overflow-hidden relative z-10 border border-border">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            className="h-full bg-primary relative"
-          >
-            <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-          </motion.div>
-        </div>
-        <div className="flex justify-between mt-2 text-xs font-mono text-muted-foreground relative z-10">
-          <span>{userXP} XP</span>
-          <span>{nextLevelXP} XP</span>
-        </div>
-      </div>
-
-      {/* Gamification Module: Daily Quests */}
-      <div className="p-6 border-t border-border/50 bg-background">
-        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
-          <Target className="w-4 h-4" /> Daily Quests
-        </h4>
-        <div className="space-y-4">
-          {quests.map((quest, idx) => (
-            <div key={idx} className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className={`${quest.completed ? 'text-accent line-through opacity-70' : 'text-foreground'}`}>
-                  {quest.title}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {quest.current}/{quest.target}
-                </span>
-              </div>
-              <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(quest.current / quest.target) * 100}%` }}
-                  transition={{ duration: 1, delay: 0.2 * idx }}
-                  className={`h-full ${quest.completed ? 'bg-accent' : 'bg-primary'}`}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </aside>
   );
 }

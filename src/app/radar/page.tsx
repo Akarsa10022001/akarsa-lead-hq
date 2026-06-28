@@ -36,14 +36,17 @@ export default function Radar() {
     fetchLeads();
   }, []);
 
-  const excludedStatuses = ['Emailed', 'Hot', 'Won', 'Dead', 'Replied', 'Contacted'];
+  const excludedStatuses = ['emailed', 'hot', 'won', 'dead', 'replied', 'contacted'];
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           lead.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           lead.industry?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const leadStatusLower = (lead.status || '').toLowerCase();
     const matchesStatus = statusFilter 
-      ? lead.status === statusFilter 
-      : !excludedStatuses.includes(lead.status);
+      ? leadStatusLower === statusFilter.toLowerCase() 
+      : !excludedStatuses.includes(leadStatusLower);
+      
     return matchesSearch && matchesStatus;
   });
 

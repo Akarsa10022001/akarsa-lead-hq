@@ -176,66 +176,92 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold">30-Day Lead Pipeline Forecast</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Powered by ARIMA · {forecastData.summary.predicted_total_30d} predicted leads · Avg {forecastData.summary.predicted_avg_daily}/day
-                  </p>
+                  {metrics.totalLeads >= 14 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Powered by ARIMA · {forecastData.summary.predicted_total_30d} predicted leads · Avg {forecastData.summary.predicted_avg_daily}/day
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Powered by ARIMA
+                    </p>
+                  )}
                 </div>
               </div>
               <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full border border-primary/20">
                 AI Engine v1.0
               </span>
             </div>
-            <div className="w-full h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={forecastData.forecast.map((d: any) => ({
-                  date: d.date.slice(5), // MM-DD format
-                  predicted: d.predicted_leads,
-                  low: d.confidence_low,
-                  high: d.confidence_high,
-                  dayName: d.day_name
-                }))}>
-                  <defs>
-                    <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={4}
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={30}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '12px',
-                      fontSize: '13px'
-                    }}
-                    formatter={(value: any, name: any) => {
-                      const labels: any = { predicted: 'Predicted Leads', low: 'Low Estimate', high: 'High Estimate' };
-                      return [value, labels[name] || name];
-                    }}
-                  />
-                  <Area type="monotone" dataKey="high" stroke="none" fill="url(#colorConfidence)" />
-                  <Area type="monotone" dataKey="low" stroke="none" fill="url(#colorConfidence)" />
-                  <Area type="monotone" dataKey="predicted" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#colorPredicted)" dot={false} activeDot={{ r: 5, strokeWidth: 2 }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            
+            {metrics.totalLeads >= 14 ? (
+              <div className="w-full h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={forecastData.forecast.map((d: any) => ({
+                    date: d.date.slice(5), // MM-DD format
+                    predicted: d.predicted_leads,
+                    low: d.confidence_low,
+                    high: d.confidence_high,
+                    dayName: d.day_name
+                  }))}>
+                    <defs>
+                      <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={4}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={30}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '12px',
+                        fontSize: '13px'
+                      }}
+                      formatter={(value: any, name: any) => {
+                        const labels: any = { predicted: 'Predicted Leads', low: 'Low Estimate', high: 'High Estimate' };
+                        return [value, labels[name] || name];
+                      }}
+                    />
+                    <Area type="monotone" dataKey="high" stroke="none" fill="url(#colorConfidence)" />
+                    <Area type="monotone" dataKey="low" stroke="none" fill="url(#colorConfidence)" />
+                    <Area type="monotone" dataKey="predicted" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#colorPredicted)" dot={false} activeDot={{ r: 5, strokeWidth: 2 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="w-full h-[250px] flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl bg-secondary/20">
+                <BrainCircuit className="w-10 h-10 text-muted-foreground mb-4 opacity-50" />
+                <h4 className="text-sm font-bold text-foreground">Not enough data to forecast yet</h4>
+                <p className="text-xs text-muted-foreground max-w-sm text-center mt-2 mb-4">
+                  Keep scanning for leads and recording activity. The ARIMA model requires a baseline of historical data to predict pipeline volume accurately.
+                </p>
+                <div className="flex items-center gap-4">
+                  <div className="w-48 h-2 bg-secondary rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-primary"
+                      style={{ width: `${Math.min(100, (metrics.totalLeads / 14) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-primary font-mono">{metrics.totalLeads}/14 required</span>
+                </div>
+              </div>
+            )}
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
