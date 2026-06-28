@@ -319,7 +319,7 @@ export async function POST(req: Request) {
       let aiHook = 'Business needs digital growth support';
       try {
         const hasWebsite = !!normalized.domain;
-        const prompt = `Based on this business in ${config.location}: "${normalized.company_name}" (Industry: ${normalized.industry}). ${hasWebsite ? 'They have a website.' : 'They have NO website - this is a huge opportunity.'} Write a very short 2-5 word compelling hook about why they need marketing help. Return valid JSON with key "hook".`;
+        const prompt = `Based on this business in ${config.location}: "${normalized.company_name}" (Industry: ${normalized.industry}). ${hasWebsite ? 'They have a website.' : 'They have NO website - this is a huge opportunity.'} Write a hyper-personalized 2-5 word sales hook. DO NOT use generic phrases like "Boost Local Visibility" or "Increase Sales". Instead, reference their specific name, industry, or offline dominance. Return valid JSON with key "hook".`;
         const llmResult = await callLLM({
           task: 'Generate short hook for lead.',
           prompt,
