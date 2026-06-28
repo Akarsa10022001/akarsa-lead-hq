@@ -6,8 +6,9 @@ export class OpenCorporatesConnector implements Connector {
   async search(query: { companyName: string }): Promise<any[]> {
     if (!query.companyName || ComplianceBreaker.isDisabled(this.name)) return [];
     
-    // OpenCorporates free tier search (rate limited, no API key needed for basic search but restricted)
-    const url = `https://api.opencorporates.com/v0.4/companies/search?q=${encodeURIComponent(query.companyName)}`;
+    const apiToken = process.env.OPENCORPORATES_API_TOKEN;
+    const tokenQuery = apiToken ? `&api_token=${apiToken}` : '';
+    const url = `https://api.opencorporates.com/v0.4/companies/search?q=${encodeURIComponent(query.companyName)}${tokenQuery}`;
     
     try {
       const response = await fetch(url);
