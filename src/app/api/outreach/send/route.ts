@@ -59,20 +59,28 @@ export async function POST(req: Request) {
         url: `https://wa.me/${phoneToSend}?text=${encodeURIComponent(emailBody)}`
       };
     } else if (channel === 'email') {
-      if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-        throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD is not configured in environment variables.");
+      const isGenericSmtp = !!process.env.SMTP_HOST;
+      const user = isGenericSmtp ? process.env.SMTP_USER : process.env.GMAIL_USER;
+      const pass = isGenericSmtp ? process.env.SMTP_PASS : process.env.GMAIL_APP_PASSWORD;
+
+      if (!user || !pass) {
+        throw new Error("Email credentials (GMAIL_USER/GMAIL_APP_PASSWORD or SMTP_USER/SMTP_PASS) are not configured.");
       }
       
-      const transporter = nodemailer.createTransport({
+      const transporterOptions: any = isGenericSmtp ? {
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+        auth: { user, pass }
+      } : {
         service: 'gmail',
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD,
-        },
-      });
+        auth: { user, pass }
+      };
+
+      const transporter = nodemailer.createTransport(transporterOptions);
 
       const info = await transporter.sendMail({
-        from: `"Akarsa" <${process.env.GMAIL_USER}>`,
+        from: `"Akarsa" <${user}>`,
         to: targetEmail,
         subject: emailSubject,
         text: emailBody,
