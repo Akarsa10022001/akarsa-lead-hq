@@ -7,6 +7,7 @@ export const maxDuration = 300; // 5 mins for large batches
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+export async function GET(req: Request) { return POST(req); }
 export async function POST(req: Request) {
   const startTime = Date.now();
   
