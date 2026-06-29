@@ -1,4 +1,5 @@
 import { Connector, ConnectorEvidence, NormalizedLead, ComplianceBreaker } from './types';
+import { getFoursquareId } from './industries';
 
 export class FoursquareConnector implements Connector {
   name = 'foursquare';
@@ -12,17 +13,8 @@ export class FoursquareConnector implements Connector {
       return { results: [] };
     }
 
-    // Foursquare category mapping (simplified). e.g., 'restaurant' -> '13065' (Dining and Drinking)
-    const categoryMap: Record<string, string> = {
-      'restaurant': '13065',
-      'retail': '17000',
-      'software': '11128',
-      'hotel': '19014',
-      'cafe': '13032'
-    };
-    
-    // Attempt to map category or default to dining
-    const categoryId = categoryMap[query.type.toLowerCase()] || '13065';
+    // Resolve the numeric Foursquare Category ID from the friendly label passed down
+    const categoryId = getFoursquareId(query.type);
     
     console.log(`[foursquare] received query.limit = ${query.limit}`);
     // Determine the safe limit (clamp to Foursquare's max 50)

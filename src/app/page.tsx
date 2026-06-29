@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import HitList from "@/components/dashboard/HitList";
+import { INDUSTRY_MAP } from "@/lib/connectors/industries";
 
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
@@ -104,6 +105,7 @@ export default function Home() {
   };
 
   const [scanLocation, setScanLocation] = useState("");
+  const [scanIndustry, setScanIndustry] = useState("Auto");
 
   const handleManualScan = async () => {
     setIsScanning(true);
@@ -111,6 +113,9 @@ export default function Home() {
       const payload: any = {};
       if (scanLocation.trim() !== "") {
         payload.location = scanLocation.trim();
+      }
+      if (scanIndustry !== "Auto") {
+        payload.businessType = scanIndustry;
       }
 
       const res = await fetch('/api/cron/discovery', { 
@@ -331,6 +336,19 @@ export default function Home() {
                   onChange={(e) => setScanLocation(e.target.value)}
                   className="w-full px-4 py-3 bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm font-mono placeholder:text-muted-foreground"
                 />
+                <select
+                  value={scanIndustry}
+                  onChange={(e) => setScanIndustry(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm font-mono text-foreground"
+                >
+                  <option value="Auto">Auto (All Industries)</option>
+                  {INDUSTRY_MAP.map(ind => (
+                    <option key={ind.label} value={ind.label}>{ind.label}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground font-mono mb-4 uppercase tracking-widest text-center">
+                  Note: Discovers physical locations only (no D2C/e-commerce)
+                </p>
                 <button 
                   onClick={handleManualScan}
                   disabled={isScanning}

@@ -1,4 +1,5 @@
 import { Connector, ConnectorEvidence, NormalizedLead } from './types';
+import { getGoogleType } from './industries';
 
 /**
  * Google Places API Connector (New)
@@ -15,6 +16,8 @@ export class GooglePlacesConnector implements Connector {
       console.warn('[GooglePlaces] GOOGLE_PLACES_API_KEY not set. Skipping.');
       return { results: [] };
     }
+
+    const mappedType = getGoogleType(query.type);
 
     // Step 1 & 2: Geocode and Nearby Search
     let results: any[] = [];
@@ -52,7 +55,7 @@ export class GooglePlacesConnector implements Connector {
 
       const { lat, lng } = geoData.results[0].geometry.location;
       const radius = query.radius || 5000;
-      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${encodeURIComponent(query.type)}&key=${apiKey}`;
+      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${encodeURIComponent(mappedType)}&key=${apiKey}`;
       
       const nearbyRes = await fetch(nearbyUrl);
       const nearbyData = await nearbyRes.json();

@@ -12,6 +12,7 @@ import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
 import { callLLM } from '@/lib/llm';
 import { enrichLead } from '@/lib/enrichment/scorer';
+import { INDUSTRY_MAP } from '@/lib/connectors/industries';
 import pLimit from 'p-limit';
 
 /**
@@ -28,14 +29,14 @@ export const dynamic = 'force-dynamic';
 
 interface DiscoveryConfig {
   location: string;
-  businessType: string;  // Google Places type (e.g. 'restaurant', 'beauty_salon')
+  businessType: string;  // Friendly label from INDUSTRY_MAP
   osmTags?: string[];    // OSM tags for fallback
   maxLeads?: number;
 }
 
 const DEFAULT_CONFIG: DiscoveryConfig = {
   location: '', // Will be dynamic
-  businessType: 'restaurant',
+  businessType: 'Auto',
   osmTags: ['amenity=restaurant', 'amenity=cafe'],
   maxLeads: parseInt(process.env.SCAN_LIMIT || '20', 10),
 };
@@ -54,11 +55,10 @@ export async function POST(req: Request) {
 
   try {
     // Allow config override from request body
-    let config = DEFAULT_CONFIG;
+    let config = { ...DEFAULT_CONFIG };
     try {
       const body = await req.json();
-      if (body.location) config = { ...config, ...body };
-      if (body.limit) config.maxLeads = body.limit;
+      config = { ...config, ...body };
     } catch { /* Use defaults if no body */ }
 
     // If location is completely blank, pick a random popular area as a fallback for the "Auto" mode
@@ -67,7 +67,27 @@ export async function POST(req: Request) {
       config.location = autoLocations[Math.floor(Math.random() * autoLocations.length)];
     }
 
-    console.log(`[Discovery] Starting pipeline for "${config.businessType}" in "${config.location}"...`);
+    // Auto-Rotation logic for "Auto"
+    let category = config.businessType;
+    if (!category || category === 'Auto') {
+       const labels = INDUSTRY_MAP.map(i => i.label);
+       const { data: allCursors } = await supabase
+         .from('discovery_cursor')
+         .select('category, is_exhausted')
+         .eq('location', config.location);
+       
+       const exhaustedCategories = new Set(allCursors?.filter(c => c.is_exhausted).map(c => c.category) || []);
+       const availableLabels = labels.filter(l => !exhaustedCategories.has(l));
+       
+       if (availableLabels.length > 0) {
+           category = availableLabels[Math.floor(Math.random() * availableLabels.length)];
+       } else {
+           category = labels[0]; // fallback if all are exhausted
+       }
+       console.log(`[Discovery] Auto-Rotation selected industry: ${category}`);
+    }
+
+    console.log(`[Discovery] Starting pipeline for "${category}" in "${config.location}"...`);
 
     // ====================================================================
     // STAGE 1: Discover businesses with Pagination Loop
@@ -90,7 +110,6 @@ export async function POST(req: Request) {
       }
     }
 
-    const category = config.businessType;
     let newLeadsFound = 0;
     let pagesFetched = 0;
     const MAX_PAGES = 5;
