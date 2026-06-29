@@ -8,6 +8,7 @@ import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scrap
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
 import { callLLM } from '@/lib/llm';
+import pLimit from 'p-limit';
 
 /**
  * Discovery Pipeline — 4-Stage Real Contact Data Engine
@@ -122,8 +123,8 @@ export async function POST(req: Request) {
     // Shuffle the rawLeads so we get different businesses every time we scan the same area
     const shuffledLeads = rawLeads.sort(() => 0.5 - Math.random());
     
-    // Process up to 5 leads concurrently (10 leads + 10 concurrent LLM calls + 30 scraper calls hits free-tier API rate limits and hangs)
-    const leadsToProcess = shuffledLeads.slice(0, config.maxLeads || 5);
+    // Process up to 20 leads (p-limit prevents rate limits)
+    const leadsToProcess = shuffledLeads.slice(0, config.maxLeads || 20);
     const results: any[] = [];
     const stats = {
       total_discovered: rawLeads.length,
@@ -136,7 +137,10 @@ export async function POST(req: Request) {
       phones_found: 0,
     };
 
-    await Promise.all(leadsToProcess.map(async (rawRecord) => {
+    // Process with bounded concurrency (4) to prevent Groq API 429 Too Many Requests
+    const limit = pLimit(4);
+
+    const settled = await Promise.allSettled(leadsToProcess.map((rawRecord) => limit(async () => {
       // Normalize the raw data
       let connector = googleConnector;
       if (primarySource === 'foursquare') connector = foursquareConnector as any;
@@ -391,7 +395,14 @@ export async function POST(req: Request) {
       results.push(lead);
       stats.processed++;
       console.log(`[Discovery] ✓ Lead saved: ${lead.company_name} | Phone: ${lead.phone || 'N/A'} | Email: ${discoveredEmail || 'N/A'} (${emailSource})`);
-    }));
+    })));
+
+    // Extract successfully fulfilled promises
+    for (const s of settled) {
+      if (s.status === 'rejected') {
+        console.error('[Discovery] Lead processing crashed:', s.reason);
+      }
+    }
 
     const duration = Date.now() - startTime;
     console.log(`[Discovery] Pipeline complete in ${duration}ms. Processed ${results.length} leads.`);
