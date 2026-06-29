@@ -49,7 +49,7 @@ function isUsefulEmail(email: string): boolean {
 async function fetchPage(url: string): Promise<string | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
+    const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout
 
     const res = await fetch(url, {
       signal: controller.signal,

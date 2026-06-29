@@ -22,3 +22,6 @@
 [Discovery] Pipeline complete in 15697ms. Processed 0 leads.
 [Discovery] Stage Log: fetched(11) -> after_loc(11) -> after_dedupe(2) -> after_verify(0) -> db_insert(0)
  POST /api/cron/discovery 200 in 15.9s (next.js: 146ms, application-code: 15.7s)
+ GET /api/posts?creator_id=default-creator 404 in 1599ms (next.js: 1516ms, application-code: 82ms)
+ GET /api/posts?creator_id=default-creator 404 in 18ms (next.js: 2ms, application-code: 16ms)
+ GET /api/auth/dev-login?email=test12345@gmail.com 404 in 34ms (next.js: 9ms, application-code: 25ms)

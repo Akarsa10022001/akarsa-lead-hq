@@ -122,8 +122,8 @@ export async function POST(req: Request) {
     // Shuffle the rawLeads so we get different businesses every time we scan the same area
     const shuffledLeads = rawLeads.sort(() => 0.5 - Math.random());
     
-    // Process up to 10 leads concurrently (scraper is heavily optimized)
-    const leadsToProcess = shuffledLeads.slice(0, config.maxLeads || 10);
+    // Process up to 5 leads concurrently (10 leads + 10 concurrent LLM calls + 30 scraper calls hits free-tier API rate limits and hangs)
+    const leadsToProcess = shuffledLeads.slice(0, config.maxLeads || 5);
     const results: any[] = [];
     const stats = {
       total_discovered: rawLeads.length,
