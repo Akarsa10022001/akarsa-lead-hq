@@ -8,6 +8,7 @@ import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scrap
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
 import { callLLM } from '@/lib/llm';
+import { enrichLead } from '@/lib/enrichment/scorer';
 import pLimit from 'p-limit';
 
 /**
@@ -198,10 +199,18 @@ export async function POST(req: Request) {
       let emailVerified = false;
       const allEvidence = [...normalized.evidence];
 
+      let website_status = 'none';
+      let social_links = null;
+      let has_website = false;
+
       if (normalized.domain) {
+        has_website = true;
         console.log(`[Discovery] Stage 2: Scraping emails from ${normalized.domain}...`);
         try {
           const scrapeResult = await scrapeWebsiteEmails(normalized.domain);
+          website_status = scrapeResult.website_status;
+          social_links = scrapeResult.social_links;
+          
           if (scrapeResult.emails.length > 0) {
             discoveredEmail = scrapeResult.emails[0]; // Take the first (best) email
             emailSource = 'website_scrape';
@@ -297,46 +306,25 @@ export async function POST(req: Request) {
       }
 
       // ====================================================================
-      // Score Calculation — OMP-Trained Weights (75.8% accuracy)
-      // Trained on 5,000 synthetic B2B leads via Orthogonal Matching Pursuit.
-      // Only 7 features (out of 17) survived elimination — the rest are noise.
+      // ENRICHMENT & SCORING (New Quality Engine)
       // ====================================================================
-      let score = 0;
+      const enriched = await enrichLead({
+        company_name: normalized.company_name,
+        domain: normalized.domain,
+        industry: normalized.industry,
+        phone: normalized.phone,
+        email: discoveredEmail,
+        location: normalized.location,
+        website_status,
+        has_website,
+        rating: normalized.rating,
+        review_count: normalized.review_count,
+        contact_name: normalized.contact_name, // If provided by connector
+        social_links
+      }, config.location);
 
-      // OMP Weight #1: has_phone → +50.0 pts (STRONGEST predictor)
-      if (normalized.phone) score += 50;
-
-      // OMP Weight #3: email_verified → +32.46 pts
-      // OMP Weight #4: email_source_quality → +30.59 pts (scales by source)
-      // OMP Weight #7: has_email → +21.16 pts
-      if (discoveredEmail) {
-        score += 21.16; // has_email base
-        if (emailSource === 'hunter') score += 30.59; // email_source_quality = 3 (max)
-        else if (emailSource === 'website_scrape') score += 20.39; // quality = 2
-        else if (emailSource === 'pattern_guess') score += 10.20; // quality = 1
-
-        if (emailVerified) score += 32.46; // email_verified
-      }
-
-      // OMP Weight #5: has_website → -26.51 pts (NEGATIVE = no website is HIGH intent)
-      if (!normalized.domain) {
-        score += 26.51; // Inverted: no website = positive signal for Akarsa
-      }
-
-      // OMP Weight #6: source_google_places → +25.54 pts
-      if (primarySource === 'google_places') score += 25.54;
-
-      // Round to integer for storage
-      score = Math.round(score);
-
-      let grade = 'C';
-      if (score >= 80) grade = 'A';
-      else if (score >= 65) grade = 'B';
-
-      // THE BOUNCER: Only reject if we have absolutely no way to contact or research them
-      // Keep any lead that has a phone OR a website OR an email
-      const hasContactInfo = normalized.phone || normalized.domain || discoveredEmail;
-      if (!hasContactInfo) {
+      // THE BOUNCER: Reject if we have absolutely no way to contact
+      if (enriched.email_quality === 'none' && !enriched.phone_e164 && !enriched.has_website) {
         console.log(`[Discovery]   ✗ Rejected: ${normalized.company_name} (No contact info or website found)`);
         return;
       }
@@ -366,15 +354,28 @@ export async function POST(req: Request) {
       const { data: lead, error: leadError } = await supabase
         .from('leads')
         .insert({
-          company_name: normalized.company_name,
-          domain: normalized.domain,
-          industry: normalized.industry,
-          phone: normalized.phone,
-          email: discoveredEmail,
-          location: normalized.location,
+          company_name: enriched.company_name,
+          domain: enriched.domain,
+          industry: enriched.industry,
+          phone: enriched.phone,
+          email: enriched.email,
+          location: enriched.location,
           status: 'New',
-          score_total: score,
-          score_grade: grade,
+          // New enriched fields
+          email_verified: enriched.email_verified,
+          email_quality: enriched.email_quality,
+          phone_e164: enriched.phone_e164,
+          website_status: enriched.website_status,
+          has_website: enriched.has_website,
+          rating: enriched.rating,
+          review_count: enriched.review_count,
+          social_links: enriched.social_links,
+          quality_score: enriched.quality_score,
+          score_factors: enriched.score_factors,
+          enriched_at: enriched.enriched_at,
+          // Legacy fields (could potentially be dropped in a real refactor)
+          score_total: enriched.quality_score,
+          score_grade: enriched.quality_score >= 80 ? 'A' : (enriched.quality_score >= 65 ? 'B' : 'C'),
           ai_hook_draft: aiHook,
           opted_out: false
         })

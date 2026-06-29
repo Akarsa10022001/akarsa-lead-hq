@@ -103,6 +103,33 @@ function extractEmailsFromHTML(html: string): string[] {
   return Array.from(emails).filter(isUsefulEmail);
 }
 
+function extractSocialLinks(html: string): any {
+  const $ = cheerio.load(html);
+  const links: any = {};
+  
+  $('a[href]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const lower = href.toLowerCase();
+    
+    if (lower.includes('instagram.com')) links.instagram = href;
+    if (lower.includes('facebook.com') && !lower.includes('sharer')) links.facebook = href;
+    if (lower.includes('linkedin.com')) links.linkedin = href;
+    if (lower.includes('twitter.com') || lower.includes('x.com')) links.twitter = href;
+  });
+  
+  return Object.keys(links).length > 0 ? links : null;
+}
+
+function detectFreeBuilder(html: string, url: string): boolean {
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes('.wixsite.com') || lowerUrl.includes('.weebly.com') || lowerUrl.includes('linktr.ee') || lowerUrl.includes('.godaddysites.com') || lowerUrl.includes('.wordpress.com')) {
+    return true;
+  }
+  
+  const lowerHtml = html.toLowerCase();
+  return lowerHtml.includes('wix.com') || lowerHtml.includes('weebly.com') || lowerHtml.includes('godaddysites.com');
+}
+
 /**
  * Scrape emails from a business website.
  * Tries the homepage + common contact pages.
@@ -111,6 +138,8 @@ function extractEmailsFromHTML(html: string): string[] {
 export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
   emails: string[];
   source_pages: string[];
+  website_status: string;
+  social_links: any;
 }> {
   const allEmails = new Set<string>();
   const sourcePages: string[] = [];
@@ -123,29 +152,50 @@ export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
   // Remove trailing slash
   baseUrl = baseUrl.replace(/\/+$/, '');
 
-  // Try each contact path concurrently to avoid hanging the serverless function
+  let website_status = 'live';
+  if (!websiteUrl.startsWith('https') && !websiteUrl.startsWith('http')) {
+    // We prepended https. If that fails, it might be dead or just http. We don't have a strict check here, but we'll assume live for now.
+  } else if (websiteUrl.startsWith('http://')) {
+    website_status = 'no_https';
+  }
+
+  let social_links: any = null;
+  let builderDetected = false;
+  let anySuccess = false;
+
   const fetchPromises = CONTACT_PATHS.slice(0, 3).map(async (path) => {
     const url = path === '/' ? baseUrl : `${baseUrl}${path}`;
     const html = await fetchPage(url);
     if (html) {
       const found = extractEmailsFromHTML(html);
-      return { url, found };
+      const socials = extractSocialLinks(html);
+      if (detectFreeBuilder(html, url)) builderDetected = true;
+      return { url, found, socials, success: true };
     }
-    return null;
+    return { url, found: [], socials: null, success: false };
   });
 
   const results = await Promise.all(fetchPromises);
   
   for (const res of results) {
-    if (res && res.found.length > 0) {
+    if (res.success) anySuccess = true;
+    if (res.found.length > 0) {
       sourcePages.push(res.url);
       res.found.forEach(e => allEmails.add(e));
     }
+    if (res.socials) {
+      social_links = { ...social_links, ...res.socials };
+    }
   }
+
+  if (!anySuccess) website_status = 'dead';
+  else if (builderDetected) website_status = 'free_builder';
 
   return {
     emails: Array.from(allEmails),
-    source_pages: sourcePages
+    source_pages: sourcePages,
+    website_status,
+    social_links
   };
 }
 

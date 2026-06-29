@@ -14,6 +14,8 @@ export interface NormalizedLead {
   email?: string;
   phone?: string;
   location?: string;
+  rating?: number;
+  review_count?: number;
   raw_data: any;
   source_name: string;
   evidence: ConnectorEvidence[];

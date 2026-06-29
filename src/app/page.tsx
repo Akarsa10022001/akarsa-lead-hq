@@ -2,11 +2,12 @@
 
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { motion } from "framer-motion";
-import { Users, Mail, CheckCircle2, TrendingUp, Loader2, BrainCircuit } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Users, Mail, CheckCircle2, TrendingUp, Loader2, BrainCircuit, X, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import HitList from "@/components/dashboard/HitList";
 
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
@@ -19,6 +20,8 @@ export default function Home() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [lastRun, setLastRun] = useState<string>("Unknown");
   const [forecastState, setForecastState] = useState<{ historyDays: number; forecast: any | null }>({ historyDays: 0, forecast: null });
+  const [hitListLeads, setHitListLeads] = useState<any[]>([]);
+  const [toast, setToast] = useState<{show: boolean; title: string; desc: string; type: 'success'|'error'}>({show: false, title: '', desc: '', type: 'success'});
 
   useEffect(() => {
     fetchDashboardData();
@@ -87,6 +90,16 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to fetch forecast", e);
     }
+
+    // 5. Fetch Hit List
+    const { data: hitData } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('status', 'New')
+      .order('quality_score', { ascending: false, nullsFirst: false })
+      .limit(15);
+    
+    if (hitData) setHitListLeads(hitData);
   };
 
   const [scanLocation, setScanLocation] = useState("");
@@ -114,19 +127,20 @@ export default function Home() {
       }
 
       if (data.success) {
-        let msg = `Scan complete! Saved ${data.leads?.length || 0} leads.`;
+        let msg = `Saved ${data.leads?.length || 0} leads.`;
         if (data.pipeline_log) {
-          msg += `\n\nPipeline Stats:\nFound: ${data.pipeline_log.fetched_from_source}\nAfter dedupe: ${data.pipeline_log.after_dedupe}\nAfter verify: ${data.pipeline_log.after_verification}\nSaved: ${data.pipeline_log.inserted_to_db}`;
+          msg = `Found: ${data.pipeline_log.fetched_from_source} | Saved: ${data.pipeline_log.inserted_to_db}`;
         }
-        alert(msg);
-        fetchDashboardData(); // Refresh metrics
+        setToast({ show: true, title: "Scan Complete", desc: msg, type: 'success' });
+        fetchDashboardData(); // Refresh metrics and HitList
       } else {
-        alert("Scan failed: " + (data.message || data.error || 'Unknown error'));
+        setToast({ show: true, title: "Scan Failed", desc: (data.message || data.error || 'Unknown error'), type: 'error' });
       }
     } catch (e: any) {
-      alert("Error triggering scan: " + e.message);
+      setToast({ show: true, title: "Scan Error", desc: e.message, type: 'error' });
     } finally {
       setIsScanning(false);
+      setTimeout(() => setToast(prev => ({...prev, show: false})), 5000);
     }
   };
 
@@ -271,30 +285,9 @@ export default function Home() {
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Activity Feed */}
+            {/* Hit List (Replaces Activity Feed) */}
             <div className="lg:col-span-2 p-6 rounded-2xl bg-card border border-border">
-              <h3 className="text-lg font-bold mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                {recentActivity.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No activity yet. Run a scan to find leads!</p>
-                ) : (
-                  recentActivity.map((activity, idx) => (
-                    <div key={idx} className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border/50">
-                      <div className={`w-2 h-2 rounded-full ${activity.status === 'received' ? 'bg-accent' : 'bg-primary'}`}></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          {activity.status === 'received' 
-                            ? `Received reply from ${activity.outreach_sequences.leads.company_name} via ${activity.channel}` 
-                            : `Sent ${activity.channel} to ${activity.outreach_sequences.leads.company_name}`}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(activity.sent_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <HitList leads={hitListLeads} onUpdate={fetchDashboardData} />
             </div>
 
             {/* Quick Actions */}
@@ -349,6 +342,27 @@ export default function Home() {
           </div>
         </motion.div>
       </main>
+      
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast.show && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-2xl border flex items-start gap-3 w-80 ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}
+          >
+            {toast.type === 'error' ? <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" /> : <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />}
+            <div className="flex-1">
+              <h4 className="font-bold text-sm">{toast.title}</h4>
+              <p className="text-xs mt-1 opacity-80">{toast.desc}</p>
+            </div>
+            <button onClick={() => setToast(prev => ({...prev, show: false}))} className="p-1 hover:bg-black/10 rounded-md">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
