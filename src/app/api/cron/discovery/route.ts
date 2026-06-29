@@ -81,6 +81,7 @@ export async function POST(req: Request) {
       rawLeads = await googleConnector.search({
         location: config.location,
         type: config.businessType,
+        limit: config.maxLeads,
       });
       console.log(`[Discovery] Google Places returned ${rawLeads.length} results.`);
     }
@@ -92,6 +93,7 @@ export async function POST(req: Request) {
       rawLeads = await foursquareConnector.search({
         location: config.location,
         type: config.businessType,
+        limit: config.maxLeads,
       });
       console.log(`[Discovery] Foursquare returned ${rawLeads.length} results.`);
     }
@@ -103,6 +105,7 @@ export async function POST(req: Request) {
       rawLeads = await osmConnector.search({
         location: config.location,
         tags: config.osmTags || ['amenity=restaurant'],
+        limit: config.maxLeads,
       });
       console.log(`[Discovery] OSM returned ${rawLeads.length} results.`);
     }

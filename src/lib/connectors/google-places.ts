@@ -9,7 +9,7 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class GooglePlacesConnector implements Connector {
   name = 'google_places';
 
-  async search(query: { location: string; type: string; radius?: number }): Promise<any[]> {
+  async search(query: { location: string; type: string; radius?: number; limit?: number }): Promise<any[]> {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {
       console.warn('[GooglePlaces] GOOGLE_PLACES_API_KEY not set. Skipping.');

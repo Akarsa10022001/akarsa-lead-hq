@@ -3,7 +3,7 @@ import { Connector, ConnectorEvidence, NormalizedLead, ComplianceBreaker } from 
 export class FoursquareConnector implements Connector {
   name = 'foursquare';
 
-  async search(query: { location: string; type: string }): Promise<any[]> {
+  async search(query: { location: string; type: string; limit?: number }): Promise<any[]> {
     if (ComplianceBreaker.isDisabled(this.name)) return [];
     
     const apiKey = process.env.FOURSQUARE_API_KEY;
@@ -24,13 +24,18 @@ export class FoursquareConnector implements Connector {
     // Attempt to map category or default to dining
     const categoryId = categoryMap[query.type.toLowerCase()] || '13065';
     
+    // Determine the safe limit (clamp to Foursquare's max 50)
+    const safeLimit = Math.min(Math.max(query.limit || 20, 1), 50);
+    
     // We search near the provided location, filtering by category
     const url = new URL('https://api.foursquare.com/v3/places/search');
     url.searchParams.append('near', query.location);
     url.searchParams.append('categories', categoryId);
-    url.searchParams.append('limit', '50');
+    url.searchParams.append('limit', safeLimit.toString());
     // Request specific fields to minimize payload and ensure we get what we need
     url.searchParams.append('fields', 'fsq_id,name,location,categories,tel,website,rating');
+    
+    console.log(`[FoursquareConnector] Outbound URL: ${url.toString()}`);
 
     try {
       const response = await fetch(url.toString(), {

@@ -3,7 +3,7 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class OSMOverpassConnector implements Connector {
   name = 'osm_overpass';
 
-  async search(query: { location: string; tags: string[] }): Promise<any[]> {
+  async search(query: { location: string; tags: string[]; limit?: number }): Promise<any[]> {
     // We bypass Overpass API entirely because it constantly throws 504 Gateway Timeouts on free tiers.
     // Instead, we use Nominatim's POI search which is highly reliable.
     
@@ -18,10 +18,13 @@ export class OSMOverpassConnector implements Connector {
     let allResults: any[] = [];
     
     // Auto-expansion loop: if we find < 5 results, widen the search net by dropping the most specific local term
+    // Apply requested limit or default 15, max out at 50 for Nominatim
+    const limit = Math.min(Math.max(query.limit || 15, 1), 50);
+
     while (currentLocation && allResults.length < 5) {
       const searchQuery = `${primaryTag} in ${currentLocation.trim()}`;
       
-      const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=15&extratags=1`, {
+      const nomResponse = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=${limit}&extratags=1`, {
         headers: { 'User-Agent': 'akarsa-lead-hq/1.0 (be@akarsaone.xyz)' }
       });
       
