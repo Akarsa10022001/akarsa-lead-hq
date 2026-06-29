@@ -3,8 +3,8 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class CustomTechConnector implements Connector {
   name = 'custom_tech';
 
-  async search(query: { url: string }): Promise<any[]> {
-    if (!query.url) return [];
+  async search(query: { url: string }): Promise<{ results: any[]; nextToken?: string }> {
+    if (!query.url) return { results: [] };
     
     try {
       const targetUrl = query.url.startsWith('http') ? query.url : `https://${query.url}`;
@@ -19,7 +19,7 @@ export class CustomTechConnector implements Connector {
       });
       clearTimeout(timeoutId);
 
-      if (!response.ok) return [];
+      if (!response.ok) return { results: [] };
 
       const html = await response.text();
       
@@ -30,14 +30,14 @@ export class CustomTechConnector implements Connector {
       if (html.includes('shopify.com')) techDetected.push('shopify');
       if (html.includes('wp-content')) techDetected.push('wordpress');
 
-      return [{
+      return { results: [{
         url: targetUrl,
         html_length: html.length,
         tech: techDetected
-      }];
+      }] };
     } catch (e) {
       console.warn(`Failed to fetch tech stack for ${query.url}:`, e);
-      return [];
+      return { results: [] };
     }
   }
 

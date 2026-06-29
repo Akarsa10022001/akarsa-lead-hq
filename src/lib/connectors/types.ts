@@ -30,7 +30,7 @@ export interface Connector {
   /**
    * Search the data source using a given query/location/industry
    */
-  search(query: any): Promise<any[]>;
+  search(query: any): Promise<{ results: any[]; nextToken?: string }>;
 
   /**
    * Fetch full details for a specific record if needed

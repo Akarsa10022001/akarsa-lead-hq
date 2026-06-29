@@ -3,7 +3,7 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class OSMOverpassConnector implements Connector {
   name = 'osm_overpass';
 
-  async search(query: { location: string; tags: string[]; limit?: number }): Promise<any[]> {
+  async search(query: { location: string; tags: string[]; limit?: number }): Promise<{ results: any[]; nextToken?: string }> {
     // We bypass Overpass API entirely because it constantly throws 504 Gateway Timeouts on free tiers.
     // Instead, we use Nominatim's POI search which is highly reliable.
     
@@ -60,7 +60,7 @@ export class OSMOverpassConnector implements Connector {
       }
     }
 
-    return allResults;
+    return { results: allResults };
   }
 
   async fetchDetail(recordId: string): Promise<any> {

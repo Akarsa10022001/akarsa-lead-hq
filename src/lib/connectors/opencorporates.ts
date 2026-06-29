@@ -3,8 +3,8 @@ import { Connector, ConnectorEvidence, NormalizedLead, ComplianceBreaker } from 
 export class OpenCorporatesConnector implements Connector {
   name = 'opencorporates';
 
-  async search(query: { companyName: string }): Promise<any[]> {
-    if (!query.companyName || ComplianceBreaker.isDisabled(this.name)) return [];
+  async search(query: { companyName: string }): Promise<{ results: any[]; nextToken?: string }> {
+    if (!query.companyName || ComplianceBreaker.isDisabled(this.name)) return { results: [] };
     
     const apiToken = process.env.OPENCORPORATES_API_TOKEN;
     const tokenQuery = apiToken ? `&api_token=${apiToken}` : '';
@@ -15,16 +15,16 @@ export class OpenCorporatesConnector implements Connector {
       
       if (response.status === 403 || response.status === 429) {
         ComplianceBreaker.disable(this.name, `Received HTTP ${response.status} ToS block`);
-        return [];
+        return { results: [] };
       }
       
-      if (!response.ok) return [];
+      if (!response.ok) return { results: [] };
       
       const data = await response.json();
       return data.results?.companies || [];
     } catch (e) {
       console.warn("OpenCorporates API error:", e);
-      return [];
+      return { results: [] };
     }
   }
 

@@ -3,8 +3,8 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class GDELTConnector implements Connector {
   name = 'gdelt';
 
-  async search(query: { keyword: string }): Promise<any[]> {
-    if (!query.keyword) return [];
+  async search(query: { keyword: string }): Promise<{ results: any[]; nextToken?: string }> {
+    if (!query.keyword) return { results: [] };
     
     // GDELT v2 DOC API - finding recent news articles matching the keyword
     // Using a timeframe of the last 1 week
@@ -12,13 +12,13 @@ export class GDELTConnector implements Connector {
     
     try {
       const response = await fetch(url);
-      if (!response.ok) return [];
+      if (!response.ok) return { results: [] };
       
       const data = await response.json();
       return data.articles || [];
     } catch (e) {
       console.warn("GDELT API error:", e);
-      return [];
+      return { results: [] };
     }
   }
 

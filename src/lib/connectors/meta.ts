@@ -3,11 +3,11 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class MetaAdLibraryConnector implements Connector {
   name = 'meta_ad_library';
 
-  async search(query: { pageId?: string; keyword?: string }): Promise<any[]> {
+  async search(query: { pageId?: string; keyword?: string }): Promise<{ results: any[]; nextToken?: string }> {
     const token = process.env.META_AD_LIBRARY_TOKEN;
     if (!token) {
       console.warn("META_AD_LIBRARY_TOKEN not set, returning mock data for connector");
-      return [];
+      return { results: [] };
     }
 
     // Example implementation using Meta Graph API for Ad Library
@@ -20,12 +20,12 @@ export class MetaAdLibraryConnector implements Connector {
 
     try {
       const response = await fetch(url.toString());
-      if (!response.ok) return [];
+      if (!response.ok) return { results: [] };
       const data = await response.json();
       return data.data || [];
     } catch (e) {
       console.error(e);
-      return [];
+      return { results: [] };
     }
   }
 

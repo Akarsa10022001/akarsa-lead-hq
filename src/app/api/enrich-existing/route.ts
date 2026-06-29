@@ -11,37 +11,71 @@ export async function POST(req: Request) {
   const startTime = Date.now();
   
   try {
-    // Fetch all leads that haven't been enriched yet, or just all leads if we want to force re-enrich
-    // We will just process the first 150 non-enriched to stay within safe timeout limits
+    const url = new URL(req.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limitParam = parseInt(url.searchParams.get('limit') || '25', 10);
+
+    // Fetch leads
     const { data: leads, error } = await supabase
       .from('leads')
       .select('*')
-      .is('enriched_at', null)
-      .limit(150);
+      .order('id')
+      .range(offset, offset + limitParam - 1);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     if (!leads || leads.length === 0) {
-      return NextResponse.json({ message: "No leads to enrich." });
+      return NextResponse.json({ message: "No leads to enrich at this offset." });
     }
 
     const limit = pLimit(4); // Run 4 concurrently
     let successCount = 0;
     let failCount = 0;
 
+    // Dynamically import to avoid top-level issues if any
+    const { scrapeWebsiteEmails } = await import('@/lib/connectors/email-scraper');
+
     await Promise.allSettled(leads.map(lead => limit(async () => {
       try {
         const locationHint = lead.location || '';
         
-        // We do not re-scrape websites here to save time, we just use existing data for now
-        // A full re-enrich would also call scrapeWebsiteEmails, but that's heavy.
-        // We'll just run the scorer based on what we have (phone, email).
+        let website_status = lead.website_status || 'none';
+        let rating = lead.rating;
+        let review_count = lead.review_count;
+
+        // Try to get rating from raw_records if missing
+        if (rating === null || rating === undefined) {
+          const { data: rawRecord } = await supabase
+            .from('raw_records')
+            .select('raw_data')
+            .eq('source_name', 'google_places')
+            .contains('raw_data', { name: lead.company_name })
+            .maybeSingle();
+            
+          if (rawRecord && rawRecord.raw_data) {
+            rating = rawRecord.raw_data.rating;
+            review_count = rawRecord.raw_data.user_ratings_total;
+          }
+        }
+
+        // Try to get website_status if missing or basic
+        if (lead.domain && (!website_status || website_status === 'live' || website_status === 'none')) {
+          try {
+             const scrapeResult = await scrapeWebsiteEmails(lead.domain);
+             website_status = scrapeResult.website_status;
+          } catch {
+             website_status = 'dead';
+          }
+        }
+
         const enriched = await enrichLead({
           ...lead,
-          website_status: lead.website_status || (lead.domain ? 'live' : 'none'), // basic assumption
-          has_website: lead.has_website !== undefined ? lead.has_website : !!lead.domain
+          website_status,
+          has_website: !!lead.domain,
+          rating,
+          review_count
         }, locationHint);
 
         const { error: updateError } = await supabase
@@ -52,6 +86,8 @@ export async function POST(req: Request) {
             phone_e164: enriched.phone_e164,
             website_status: enriched.website_status,
             has_website: enriched.has_website,
+            rating: rating,
+            review_count: review_count,
             quality_score: enriched.quality_score,
             score_factors: enriched.score_factors,
             enriched_at: enriched.enriched_at,

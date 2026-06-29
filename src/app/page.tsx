@@ -96,6 +96,7 @@ export default function Home() {
       .from('leads')
       .select('*')
       .eq('status', 'New')
+      .gt('quality_score', 0)
       .order('quality_score', { ascending: false, nullsFirst: false })
       .limit(15);
     

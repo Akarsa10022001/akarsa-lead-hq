@@ -3,8 +3,8 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class WhoisConnector implements Connector {
   name = 'whois';
 
-  async search(query: { domain: string }): Promise<any[]> {
-    if (!query.domain) return [];
+  async search(query: { domain: string }): Promise<{ results: any[]; nextToken?: string }> {
+    if (!query.domain) return { results: [] };
     
     // RDAP (Registration Data Access Protocol) is the modern, free replacement for WHOIS
     // We use a public RDAP bootstrap to find domain info
@@ -12,13 +12,13 @@ export class WhoisConnector implements Connector {
     
     try {
       const response = await fetch(url);
-      if (!response.ok) return [];
+      if (!response.ok) return { results: [] };
       
       const data = await response.json();
-      return [data]; // RDAP returns a single object
+      return { results: [data] }; // RDAP returns a single object
     } catch (e) {
       console.warn("WHOIS/RDAP API error:", e);
-      return [];
+      return { results: [] };
     }
   }
 

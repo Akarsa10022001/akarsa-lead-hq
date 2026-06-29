@@ -3,13 +3,13 @@ import { Connector, ConnectorEvidence, NormalizedLead, ComplianceBreaker } from 
 export class FoursquareConnector implements Connector {
   name = 'foursquare';
 
-  async search(query: { location: string; type: string; limit?: number }): Promise<any[]> {
-    if (ComplianceBreaker.isDisabled(this.name)) return [];
+  async search(query: { location: string; type: string; limit?: number; cursor?: string }): Promise<{ results: any[]; nextToken?: string }> {
+    if (ComplianceBreaker.isDisabled(this.name)) return { results: [] };
     
     const apiKey = process.env.FOURSQUARE_API_KEY;
     if (!apiKey) {
       console.warn("[FoursquareConnector] FOURSQUARE_API_KEY missing. Skipping.");
-      return [];
+      return { results: [] };
     }
 
     // Foursquare category mapping (simplified). e.g., 'restaurant' -> '13065' (Dining and Drinking)
@@ -37,6 +37,10 @@ export class FoursquareConnector implements Connector {
     // Request specific fields to minimize payload and ensure we get what we need
     url.searchParams.append('fields', 'fsq_id,name,location,categories,tel,website,rating');
     
+    if (query.cursor) {
+      url.searchParams.append('cursor', query.cursor);
+    }
+    
     console.log(`[FoursquareConnector] Outbound URL: ${url.toString()}`);
 
     try {
@@ -49,16 +53,26 @@ export class FoursquareConnector implements Connector {
 
       if (response.status === 403 || response.status === 429) {
         ComplianceBreaker.disable(this.name, `Received HTTP ${response.status} from Foursquare`);
-        return [];
+        return { results: [] };
       }
 
-      if (!response.ok) return [];
+      if (!response.ok) return { results: [] };
+
+      let nextToken: string | undefined;
+      const linkHeader = response.headers.get('Link');
+      if (linkHeader) {
+        const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+        if (match && match[1]) {
+          const nextUrl = new URL(match[1]);
+          nextToken = nextUrl.searchParams.get('cursor') || undefined;
+        }
+      }
 
       const data = await response.json();
-      return data.results || [];
+      return { results: data.results || [], nextToken };
     } catch (e) {
       console.warn("[FoursquareConnector] Error:", e);
-      return [];
+      return { results: [] };
     }
   }
 
@@ -86,6 +100,7 @@ export class FoursquareConnector implements Connector {
       industry: primaryCategory,
       phone: rawRecord.tel || null,
       location: locationStr,
+      rating: rawRecord.rating ? rawRecord.rating / 2 : undefined,
       raw_data: rawRecord,
       source_name: this.name,
       evidence: this.getEvidence(rawRecord)

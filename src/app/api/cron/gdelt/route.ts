@@ -22,7 +22,8 @@ export async function POST() {
 
     for (const lead of leads) {
       // 2. Query GDELT for recent news about the company
-      const rawEvents = await gdelt.search({ keyword: lead.company_name });
+      const searchRes = await gdelt.search({ keyword: lead.company_name });
+      const rawEvents = searchRes.results;
       
       if (rawEvents.length > 0) {
         // Extract evidence format

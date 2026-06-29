@@ -11,10 +11,11 @@ async function main() {
   console.log("\n0. Testing Google Places API...");
   const googleConnector = new GooglePlacesConnector();
   try {
-    const rawLeads = await googleConnector.search({
-      location: 'Pune',
+    const searchRes = await googleConnector.search({
+      location: 'Dubai, UAE',
       type: 'restaurant'
     });
+    const rawLeads = searchRes.results;
     console.log(`Found ${rawLeads.length} leads from Google Places.`);
     if (rawLeads.length > 0) {
       const firstLead = googleConnector.normalize(rawLeads[0]);

@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     console.log(`[Discovery] Starting pipeline for "${config.businessType}" in "${config.location}"...`);
 
     // ====================================================================
-    // STAGE 1: Discover businesses (Google Places primary, OSM fallback)
+    // STAGE 1: Discover businesses with Pagination Loop
     // ====================================================================
     let rawLeads: any[] = [];
     let primarySource = 'google_places';
@@ -76,64 +76,120 @@ export async function POST(req: Request) {
     const foursquareConnector = new FoursquareConnector();
     const osmConnector = new OSMOverpassConnector();
 
-    // Try Google Places first
-    if (process.env.GOOGLE_PLACES_API_KEY) {
-      console.log('[Discovery] Stage 1: Using Google Places API...');
-      rawLeads = await googleConnector.search({
-        location: config.location,
-        type: config.businessType,
-        limit: config.maxLeads,
-      });
-      console.log(`[Discovery] Google Places returned ${rawLeads.length} results.`);
+    let connector: any = googleConnector;
+    if (!process.env.GOOGLE_PLACES_API_KEY) {
+      if (process.env.FOURSQUARE_API_KEY) {
+        primarySource = 'foursquare';
+        connector = foursquareConnector;
+      } else {
+        primarySource = 'osm_overpass';
+        connector = osmConnector;
+      }
     }
 
-    // Fallback to Foursquare if Google Places returned nothing
-    if (rawLeads.length === 0 && process.env.FOURSQUARE_API_KEY) {
-      console.log('[Discovery] Stage 1: Falling back to Foursquare API...');
-      primarySource = 'foursquare';
-      
-      console.log(`[route] config.maxLeads = ${config.maxLeads}`);
-      console.log(`[route] passing limit to connector = ${config.maxLeads}`);
-      
-      rawLeads = await foursquareConnector.search({
-        location: config.location,
-        type: config.businessType,
-        limit: config.maxLeads,
+    const category = config.businessType;
+    let newLeadsFound = 0;
+    let pagesFetched = 0;
+    const MAX_PAGES = 5;
+
+    // 1. Fetch current cursor state
+    const { data: cursorData } = await supabase
+      .from('discovery_cursor')
+      .select('*')
+      .eq('source', primarySource)
+      .eq('location', config.location)
+      .eq('category', category)
+      .maybeSingle();
+
+    let nextToken = cursorData?.next_token || undefined;
+    let page = cursorData?.page || 0;
+    let exhausted = cursorData?.exhausted || false;
+
+    if (exhausted) {
+      return NextResponse.json({
+        success: true,
+        message: `${config.location} fully scanned from ${primarySource} — try another city, category, or data source.`,
+        leads: [],
+        stats: { duration_ms: Date.now() - startTime }
       });
-      console.log(`[Discovery] Foursquare returned ${rawLeads.length} results.`);
     }
 
-    // Fallback to OSM if Foursquare returned nothing or isn't configured
-    if (rawLeads.length === 0) {
-      console.log('[Discovery] Stage 1: Falling back to OSM Nominatim...');
-      primarySource = 'osm_overpass';
-      rawLeads = await osmConnector.search({
+    console.log(`[Discovery] Starting loop for ${primarySource}, page: ${page}`);
+
+    while (newLeadsFound < config.maxLeads! && pagesFetched < MAX_PAGES && !exhausted) {
+      console.log(`[Discovery] Fetching page with token: ${nextToken}`);
+      const searchRes = await connector.search({
         location: config.location,
-        tags: config.osmTags || ['amenity=restaurant'],
+        type: category,
         limit: config.maxLeads,
+        pageToken: primarySource === 'google_places' ? nextToken : undefined,
+        cursor: primarySource === 'foursquare' ? nextToken : undefined,
       });
-      console.log(`[Discovery] OSM returned ${rawLeads.length} results.`);
+
+      // searchRes can be an array (for OSM) or { results, nextToken }
+      const pageResults = Array.isArray(searchRes) ? searchRes : searchRes.results;
+      const newNextToken = Array.isArray(searchRes) ? undefined : searchRes.nextToken;
+      
+      if (pageResults.length === 0) {
+        exhausted = true;
+        break;
+      }
+
+      pipelineLog.fetched_from_source += pageResults.length;
+      pipelineLog.after_location_filter += pageResults.length;
+
+      // Dedupe immediately to see how many NEW leads we got in this page
+      for (const record of pageResults) {
+        const normalized = connector.normalize(record);
+        const { data: existingLead } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('company_name', normalized.company_name)
+          .eq('location', normalized.location)
+          .maybeSingle();
+
+        if (!existingLead) {
+          rawLeads.push(record);
+          newLeadsFound++;
+        }
+      }
+
+      pagesFetched++;
+      page++;
+      nextToken = newNextToken;
+      if (!nextToken) exhausted = true;
+
+      // Google requires delay for pagetoken (handled inside connector, but loop safeguard)
+      if (newLeadsFound >= config.maxLeads!) break;
     }
+
+    // Save cursor
+    await supabase.from('discovery_cursor').upsert({
+      source: primarySource,
+      location: config.location,
+      category: category,
+      next_token: nextToken,
+      page: page,
+      exhausted: exhausted,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'source,location,category' });
 
     if (rawLeads.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No businesses found in the target area. Try a different location or business type.',
+        message: `No new businesses found in ${config.location} after dedupe.`,
         leads: [],
         stats: { duration_ms: Date.now() - startTime }
       });
     }
     
-    pipelineLog.fetched_from_source = rawLeads.length;
-    pipelineLog.after_location_filter = rawLeads.length; // Same since the API handles location
-
     // ====================================================================
     // Process each lead through the enrichment pipeline
     // ====================================================================
     // Shuffle the rawLeads so we get different businesses every time we scan the same area
     const shuffledLeads = rawLeads.sort(() => 0.5 - Math.random());
     
-    // Process up to 20 leads (p-limit prevents rate limits)
+    // Process up to maxLeads
     const leadsToProcess = shuffledLeads.slice(0, config.maxLeads || 20);
     const results: any[] = [];
     const stats = {

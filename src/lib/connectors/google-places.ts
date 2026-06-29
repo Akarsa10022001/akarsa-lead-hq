@@ -9,40 +9,59 @@ import { Connector, ConnectorEvidence, NormalizedLead } from './types';
 export class GooglePlacesConnector implements Connector {
   name = 'google_places';
 
-  async search(query: { location: string; type: string; radius?: number; limit?: number }): Promise<any[]> {
+  async search(query: { location: string; type: string; radius?: number; limit?: number; pageToken?: string }): Promise<{ results: any[]; nextToken?: string }> {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {
       console.warn('[GooglePlaces] GOOGLE_PLACES_API_KEY not set. Skipping.');
-      return [];
+      return { results: [] };
     }
 
-    // Step 1: Geocode the location name to lat/lng
-    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query.location)}&key=${apiKey}`;
-    const geoRes = await fetch(geocodeUrl);
-    const geoData = await geoRes.json();
-    
-    console.log("[GooglePlaces Debug] Geocode Response:", geoData);
+    // Step 1 & 2: Geocode and Nearby Search
+    let results: any[] = [];
+    let next_page_token: string | undefined;
 
-    if (!geoData.results || geoData.results.length === 0) {
-      console.warn(`[GooglePlaces] Could not geocode location: ${query.location}`);
-      return [];
+    if (query.pageToken) {
+      console.log(`[GooglePlaces] Using pageToken: ${query.pageToken}`);
+      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${query.pageToken}&key=${apiKey}`;
+      const nearbyRes = await fetch(nearbyUrl);
+      const nearbyData = await nearbyRes.json();
+      
+      // If INVALID_REQUEST, it means the token is not active yet (Google delay). We should retry after 2s.
+      if (nearbyData.status === 'INVALID_REQUEST') {
+        console.log(`[GooglePlaces] Token not ready, waiting 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        const retryRes = await fetch(nearbyUrl);
+        const retryData = await retryRes.json();
+        if (retryData.status === 'OK') {
+          results = retryData.results || [];
+          next_page_token = retryData.next_page_token;
+        }
+      } else if (nearbyData.status === 'OK') {
+        results = nearbyData.results || [];
+        next_page_token = nearbyData.next_page_token;
+      }
+    } else {
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query.location)}&key=${apiKey}`;
+      const geoRes = await fetch(geocodeUrl);
+      const geoData = await geoRes.json();
+      
+      if (!geoData.results || geoData.results.length === 0) {
+        console.warn(`[GooglePlaces] Could not geocode location: ${query.location}`);
+        return { results: [] };
+      }
+
+      const { lat, lng } = geoData.results[0].geometry.location;
+      const radius = query.radius || 5000;
+      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${encodeURIComponent(query.type)}&key=${apiKey}`;
+      
+      const nearbyRes = await fetch(nearbyUrl);
+      const nearbyData = await nearbyRes.json();
+
+      if (nearbyData.status === 'OK') {
+        results = nearbyData.results || [];
+        next_page_token = nearbyData.next_page_token;
+      }
     }
-
-    const { lat, lng } = geoData.results[0].geometry.location;
-
-    // Step 2: Nearby Search for businesses
-    const radius = query.radius || 5000; // 5km default
-    const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${encodeURIComponent(query.type)}&key=${apiKey}`;
-    
-    const nearbyRes = await fetch(nearbyUrl);
-    const nearbyData = await nearbyRes.json();
-
-    if (nearbyData.status !== 'OK' && nearbyData.status !== 'ZERO_RESULTS') {
-      console.error(`[GooglePlaces] Nearby Search Error: ${nearbyData.status} - ${nearbyData.error_message || ''}`);
-      return [];
-    }
-
-    const results = nearbyData.results || [];
     
     // Step 3: Fetch Place Details for each result (to get phone, website)
     const detailedResults: any[] = [];
@@ -68,7 +87,7 @@ export class GooglePlacesConnector implements Connector {
       }
     }
 
-    return detailedResults;
+    return { results: detailedResults, nextToken: next_page_token };
   }
 
   async fetchDetail(placeId: string): Promise<any> {
@@ -99,6 +118,8 @@ export class GooglePlacesConnector implements Connector {
       industry,
       phone: rawRecord.international_phone_number || rawRecord.formatted_phone_number || null,
       location: rawRecord.formatted_address || 'Unknown',
+      rating: rawRecord.rating,
+      review_count: rawRecord.user_ratings_total,
       raw_data: rawRecord,
       source_name: this.name,
       evidence: this.getEvidence(rawRecord)
