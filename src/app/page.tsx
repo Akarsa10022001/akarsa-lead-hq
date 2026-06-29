@@ -174,16 +174,16 @@ export default function Home() {
               <motion.div 
                 key={idx}
                 whileHover={{ y: -5 }}
-                className="p-6 rounded-2xl bg-card border border-border flex items-center gap-4 relative overflow-hidden group"
+                className="p-6 bg-card border border-border flex items-center gap-4 relative overflow-hidden group"
               >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} ${stat.color}`}>
+                <div className={`w-12 h-12 flex items-center justify-center border border-border ${stat.bg} ${stat.color}`}>
                   <stat.icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-sm font-medium">{stat.title}</p>
-                  <h3 className="text-3xl font-bold mt-1 text-foreground">{stat.value}</h3>
+                  <p className="text-muted-foreground text-xs uppercase tracking-widest font-semibold">{stat.title}</p>
+                  <h3 className="text-3xl font-bold mt-1 text-foreground font-heading">{stat.value}</h3>
                 </div>
-                <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-br from-transparent to-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors"></div>
+                <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-br from-transparent to-primary/5 blur-2xl group-hover:bg-primary/10 transition-colors"></div>
               </motion.div>
             ))}
           </div>
@@ -193,28 +193,28 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
-            className="mb-8 p-6 rounded-2xl bg-card border border-border"
+            className="mb-8 p-6 bg-card border border-border"
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <div className="w-10 h-10 bg-primary/10 flex items-center justify-center border border-primary/20">
                   <BrainCircuit className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold">30-Day Lead Pipeline Forecast</h3>
+                  <h3 className="text-xl font-bold font-heading uppercase tracking-wide">30-Day Lead Pipeline Forecast</h3>
                   {forecastState.historyDays >= 14 && forecastState.forecast ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Powered by ARIMA · {forecastState.forecast.summary.predicted_total_30d} predicted leads · Avg {forecastState.forecast.summary.predicted_avg_daily}/day
                     </p>
                   ) : (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Building forecast — need ~14 days of activity (currently Day {forecastState.historyDays} of 14)
                     </p>
                   )}
                 </div>
               </div>
-              <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full border border-primary/20">
-                AI Engine v1.0
+              <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+                [ AI ENGINE v1.0 ]
               </span>
             </div>
             
@@ -287,32 +287,32 @@ export default function Home() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Hit List (Replaces Activity Feed) */}
-            <div className="lg:col-span-2 p-6 rounded-2xl bg-card border border-border">
+            <div className="lg:col-span-2 p-6 bg-card border border-border">
               <HitList leads={hitListLeads} onUpdate={fetchDashboardData} />
             </div>
 
             {/* Quick Actions */}
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 flex flex-col justify-between">
+            <div className="p-6 bg-surface-elevated border border-border flex flex-col justify-between">
               <div>
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold font-heading uppercase tracking-wide mb-4 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
                   AI Agent Status
                 </h3>
-                <div className="p-4 rounded-xl bg-background border border-border mb-4">
+                <div className="p-4 bg-background border border-border mb-4">
                   <p className="text-sm text-muted-foreground mb-2">Last Scheduled Run:</p>
-                  <p className="font-mono font-bold text-lg">{lastRun}</p>
+                  <p className="font-mono font-bold text-lg text-foreground">{lastRun}</p>
                   <p className="text-xs text-primary mt-1">Status: Sleeping (cron at 09:00 UTC)</p>
                 </div>
 
                 <div className="mb-6">
-                  <h4 className="text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wider">Dynamic Quests</h4>
+                  <h4 className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-widest">Dynamic Quests</h4>
                   {quests.map((q, i) => (
                     <div key={i} className="mb-3 last:mb-0">
-                      <div className="flex justify-between text-xs mb-1">
+                      <div className="flex justify-between text-xs mb-1 font-medium">
                         <span>{q.label}</span>
-                        <span className="text-primary font-mono">{q.current}/{q.target}</span>
+                        <span className="text-foreground font-mono">{q.current}/{q.target}</span>
                       </div>
-                      <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className="w-full h-1 bg-border overflow-hidden">
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min(100, (q.current/q.target) * 100)}%` }}
@@ -329,12 +329,12 @@ export default function Home() {
                   placeholder="E.g. Dubai, UAE (Leave blank for auto)"
                   value={scanLocation}
                   onChange={(e) => setScanLocation(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm"
+                  className="w-full px-4 py-3 bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm font-mono placeholder:text-muted-foreground"
                 />
                 <button 
                   onClick={handleManualScan}
                   disabled={isScanning}
-                  className="w-full py-3 flex justify-center items-center gap-2 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors shadow-[0_0_20px_rgba(147,51,234,0.3)] disabled:opacity-50 disabled:shadow-none"
+                  className="w-full py-3 flex justify-center items-center gap-2 bg-primary text-primary-foreground font-bold font-heading tracking-wide uppercase hover:bg-primary/90 transition-colors disabled:opacity-50 border border-primary"
                 >
                   {isScanning ? <><Loader2 className="w-5 h-5 animate-spin" /> Scanning...</> : "Launch Manual Scan"}
                 </button>

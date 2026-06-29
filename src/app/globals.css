@@ -1,83 +1,99 @@
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@400,500,700,900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
+  --font-heading: 'Clash Display', sans-serif;
+  --font-body: 'Satoshi', sans-serif;
+
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-foreground);
+  
+  --color-secondary: var(--surface-elevated);
+  --color-secondary-foreground: var(--text);
+  
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
+  
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  
+  --color-muted: var(--surface-elevated);
+  --color-muted-foreground: var(--text-muted);
+  
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  
   --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+
+  /* Set default border radius to 0px for the brutalist look */
+  --radius: 0px;
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
 }
 
 :root {
-  /* Dark Arcade/Hacker Theme */
-  --background: #09090b; /* Very dark zinc */
-  --foreground: #fafafa;
+  /* LIGHT THEME (Editorial Paper) */
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --border: #e5e5e5;
+  --text: #111111;
+  --text-muted: #666666;
   
-  /* Electric Purple */
-  --primary: #9333ea; 
-  --primary-foreground: #ffffff;
+  /* Primary CTA Accent - we will keep the bold purple */
+  --accent: #7c3aed; /* sharp electric purple */
+  --accent-foreground: #ffffff;
   
-  /* Darker slate/zinc for cards */
-  --card: #18181b;
-  --card-foreground: #fafafa;
+  --radius: 0px;
+}
+
+.dark {
+  /* DARK THEME (Bold Contrast) */
+  --bg: #0a0a0a;
+  --surface: #161616;
+  --surface-elevated: #1f1f1f;
+  --border: #2a2a2a;
+  --text: #f5f5f5;
+  --text-muted: #a1a1a1;
   
-  /* Subtle gray for secondary elements */
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  
-  /* Neon Green for accents/success */
-  --accent: #22c55e;
-  --accent-foreground: #09090b;
-  
-  /* Neon Pink/Red for destructive */
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  
-  /* Muted text */
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #9333ea;
-  
-  --radius: 0.5rem;
+  --accent: #9333ea;
+  --accent-foreground: #ffffff;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body), sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom Scrollbar */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading), sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Custom Scrollbar - sharp and minimalistic */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 4px;
+  border-radius: 0px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
+  background: var(--text-muted);
 }

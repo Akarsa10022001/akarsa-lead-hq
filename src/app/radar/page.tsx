@@ -129,13 +129,13 @@ export default function Radar() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search targets..." 
-                  className="pl-9 pr-4 py-2 bg-secondary border border-border rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full sm:w-64 transition-all"
+                  className="pl-9 pr-4 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full sm:w-64 transition-all font-mono"
                 />
               </div>
               <div className="relative">
                 <button 
                   onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-                  className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-xl text-sm hover:bg-secondary/80 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-background border border-border text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest"
                 >
                   <Filter className="w-4 h-4" /> 
                   {statusFilter || "All Statuses"} 
@@ -147,12 +147,12 @@ export default function Radar() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+                      className="absolute right-0 mt-2 w-48 bg-card border border-border shadow-xl z-50 overflow-hidden"
                     >
-                      <button onClick={() => { setStatusFilter(null); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors">All Statuses</button>
-                      <button onClick={() => { setStatusFilter('New'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-primary font-medium">New</button>
-                      <button onClick={() => { setStatusFilter('Contacted'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-blue-500 font-medium">Contacted</button>
-                      <button onClick={() => { setStatusFilter('Won'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-accent font-medium">Won</button>
+                      <button onClick={() => { setStatusFilter(null); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest">All Statuses</button>
+                      <button onClick={() => { setStatusFilter('New'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-primary font-medium font-mono uppercase tracking-widest">New</button>
+                      <button onClick={() => { setStatusFilter('Contacted'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-blue-500 font-medium font-mono uppercase tracking-widest">Contacted</button>
+                      <button onClick={() => { setStatusFilter('Won'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-accent font-medium font-mono uppercase tracking-widest">Won</button>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -160,27 +160,27 @@ export default function Radar() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl overflow-x-auto shadow-2xl">
+          <div className="bg-card border border-border overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-secondary/50 border-b border-border">
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Company</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phone</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Industry</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Hook</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">Action</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Company</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Contact</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Phone</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Industry</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">AI Hook</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Status</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="p-4 text-center text-muted-foreground">Loading leads...</td>
+                    <td colSpan={6} className="p-4 text-center text-muted-foreground font-mono">Loading leads...</td>
                   </tr>
                 ) : filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-4 text-center text-muted-foreground">No leads found matching your filters.</td>
+                    <td colSpan={6} className="p-4 text-center text-muted-foreground font-mono">No leads found matching your filters.</td>
                   </tr>
                 ) : filteredLeads.map((lead, idx) => (
                   <motion.tr 
@@ -190,19 +190,19 @@ export default function Radar() {
                     transition={{ delay: idx * 0.05 }}
                     className="border-b border-border/50 hover:bg-secondary/30 transition-colors group"
                   >
-                    <td className="p-4 font-medium">{lead.company_name}</td>
+                    <td className="p-4 font-bold font-heading uppercase tracking-wide">{lead.company_name}</td>
                     <td className="p-4 text-muted-foreground">{lead.contact_name || 'N/A'}</td>
                     <td className="p-4 text-muted-foreground font-mono text-sm">{lead.phone || 'N/A'}</td>
                     <td className="p-4">
-                      <span className="px-2.5 py-1 bg-secondary rounded-md text-xs font-medium border border-border">
+                      <span className="px-2.5 py-1 bg-background text-foreground text-[10px] font-medium border border-border uppercase tracking-widest">
                         {lead.industry}
                       </span>
                     </td>
-                    <td className="p-4 text-sm max-w-[200px] truncate text-muted-foreground">
+                    <td className="p-4 text-sm max-w-[200px] truncate text-muted-foreground font-mono">
                       "{lead.ai_hook_draft || 'Generating...'}"
                     </td>
                     <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${
+                      <span className={`px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold border ${
                         lead.status === 'New' ? 'bg-primary/10 text-primary border-primary/20' : 
                         lead.status === 'Contacted' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 
                         'bg-accent/10 text-accent border-accent/20'
@@ -213,7 +213,7 @@ export default function Radar() {
                     <td className="p-4 text-right flex justify-end gap-2">
                       <button 
                         onClick={() => handleDeleteLead(lead.id, lead.company_name)}
-                        className="inline-block p-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                        className="inline-block p-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all opacity-0 group-hover:opacity-100 cursor-pointer border border-transparent hover:border-destructive"
                         title="Delete Lead"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -221,7 +221,7 @@ export default function Radar() {
                       {lead.status === 'Contacted' && (
                         <button 
                           onClick={() => handleMarkReplied(lead)}
-                          className="inline-block p-2 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                          className="inline-block p-2 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white transition-all opacity-0 group-hover:opacity-100 cursor-pointer border border-transparent hover:border-[#25D366]"
                           title="Mark WhatsApp Replied"
                         >
                           <MessageSquare className="w-4 h-4" />
@@ -229,14 +229,14 @@ export default function Radar() {
                       )}
                       <button 
                         onClick={() => handleEditLead(lead)}
-                        className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground rounded-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                        className="inline-block p-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all opacity-0 group-hover:opacity-100 cursor-pointer border border-transparent hover:border-primary"
                         title="Edit Phone"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <Link 
                         href={`/campaigns?leadId=${lead.id}`}
-                        className="inline-block p-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all opacity-0 group-hover:opacity-100"
+                        className="inline-block p-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all opacity-0 group-hover:opacity-100 border border-primary"
                         title="Start Campaign"
                       >
                         <Mail className="w-4 h-4" />

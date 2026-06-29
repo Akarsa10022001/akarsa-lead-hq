@@ -18,20 +18,20 @@ export default function Header() {
       <header className="h-20 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 md:px-8 sticky top-0 z-50 md:ml-72">
         <div className="flex items-center gap-3">
           <button 
-            className="md:hidden w-10 h-10 rounded-xl bg-secondary flex items-center justify-center"
+            className="md:hidden w-10 h-10 bg-secondary flex items-center justify-center border border-border"
             onClick={() => setMobileMenuOpen(true)}
           >
             <Menu className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-foreground">Welcome back, Ritik</h2>
-            <p className="text-muted-foreground text-xs md:text-sm hidden sm:block">Let's close some deals today.</p>
+            <h2 className="text-xl md:text-2xl font-bold text-foreground font-heading uppercase tracking-wide">Welcome back, Ritik</h2>
+            <p className="text-muted-foreground text-xs md:text-sm hidden sm:block font-mono">Let's close some deals today.</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 md:gap-6">
           {/* Gamification Module: Streak Counter */}
-          <div className="hidden sm:flex items-center gap-2 bg-secondary/50 px-4 py-2 rounded-full border border-border">
+          <div className="hidden sm:flex items-center gap-2 bg-background px-4 py-2 border border-border">
             <motion.div
               animate={{ 
                 scale: [1, 1.2, 1],
@@ -41,24 +41,24 @@ export default function Header() {
             >
               <Flame className="w-5 h-5 text-orange-500 fill-orange-500/20" />
             </motion.div>
-            <span className="font-bold text-foreground text-sm">12 Day Streak</span>
+            <span className="font-bold text-foreground text-sm uppercase tracking-widest font-heading">12 Day Streak</span>
           </div>
 
           <div className="flex items-center gap-1 md:gap-3 sm:border-l border-border sm:pl-6">
             <button 
               onClick={handleNotificationClick}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors relative"
+              className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors relative border border-transparent hover:border-border"
             >
               <Bell className="w-5 h-5" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full animate-pulse"></span>
             </button>
             <button 
               onClick={handleSettingsClick}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors border border-transparent hover:border-border"
             >
               <Settings className="w-5 h-5" />
             </button>
-            <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center text-primary ml-1 md:ml-2">
+            <div className="w-10 h-10 bg-primary flex items-center justify-center text-primary-foreground ml-1 md:ml-2 border border-primary">
               <User className="w-5 h-5" />
             </div>
           </div>

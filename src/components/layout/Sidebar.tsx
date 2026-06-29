@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Zap, Target, Mail, Send, Award, Flame, Users, LayoutDashboard, Activity } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -24,11 +25,11 @@ export default function Sidebar() {
       {/* Brand */}
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-[0_0_15px_rgba(147,51,234,0.5)]">
+          <div className="w-10 h-10 bg-primary flex items-center justify-center text-primary-foreground border border-primary">
             <Zap className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-bold text-xl tracking-tight text-foreground">Lead HQ</h1>
+            <h1 className="font-bold text-xl tracking-tight text-foreground uppercase font-heading">Lead HQ</h1>
             <p className="text-xs text-primary font-mono tracking-wider">AKARSA STUDIO</p>
           </div>
         </div>
@@ -37,36 +38,41 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="p-4 space-y-2 flex-1">
         <Link href="/">
-          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <LayoutDashboard className="w-5 h-5" />
             <span className="font-medium">Command Center</span>
           </span>
         </Link>
         <Link href="/radar">
-          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/radar' ? 'bg-primary/20 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/radar' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <Target className="w-5 h-5" />
             <span className="font-medium">Lead Radar</span>
           </span>
         </Link>
         <Link href="/campaigns">
-          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/campaigns' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/campaigns' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <Send className="w-5 h-5" />
             <span className="font-medium">Outreach Campaigns</span>
           </span>
         </Link>
         <Link href="/inbox">
-          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/inbox' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/inbox' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <Mail className="w-5 h-5" />
             <span className="font-medium">Priority Inbox</span>
           </span>
         </Link>
         <Link href="/activity">
-          <span className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${pathname === '/activity' ? 'bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(147,51,234,0.2)]' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}>
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/activity' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <Activity className="w-5 h-5" />
             <span className="font-medium">Activity Log</span>
           </span>
         </Link>
       </nav>
+
+      {/* Theme Toggle at bottom */}
+      <div className="p-4 border-t border-border/50">
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }
