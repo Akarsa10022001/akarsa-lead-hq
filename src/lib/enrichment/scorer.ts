@@ -99,14 +99,42 @@ export function calculateQualityScore(lead: any) {
     factors.contact_name = 10;
   }
 
+  // Tech Stack (Needs CRO / Speed Optimization)
+  if (lead.tech_stack) {
+    if (lead.tech_stack.includes('wordpress')) {
+      score += 15;
+      factors.uses_wordpress = 15;
+    }
+    if (lead.tech_stack.includes('shopify')) {
+      score += 15;
+      factors.uses_shopify = 15;
+    }
+  }
+
+  // Domain Age (New business = budget & urgency)
+  if (lead.domain_age_years !== undefined && lead.domain_age_years !== null) {
+    if (lead.domain_age_years <= 1) {
+      score += 30;
+      factors.new_business = 30;
+    }
+  }
+
+  // Meta Ads (Not advertising = marketing opportunity)
+  if (lead.domain && lead.has_active_ads === false) {
+    score += 20;
+    factors.no_active_ads = 20;
+  }
+
   if (lead.email_quality === 'none' && !lead.phone_e164) {
     score -= 20;
     factors.uncontactable = -20;
   }
 
-  score = Math.min(Math.max(score, 0), 100);
-
-  return { score, factors };
+  // Cap score to 100 (Max is actually ~165 now but we normalize to 100)
+  return {
+    score: Math.min(Math.max(score, 0), 100),
+    factors: factors
+  };
 }
 
 export async function enrichLead(rawLead: any, locationHint: string) {

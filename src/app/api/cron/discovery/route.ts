@@ -4,6 +4,9 @@ import { GooglePlacesConnector } from '@/lib/connectors/google-places';
 import { OSMOverpassConnector } from '@/lib/connectors/osm';
 import { FoursquareConnector } from '@/lib/connectors/foursquare';
 import { CustomTechConnector } from '@/lib/connectors/tech';
+import { WhoisConnector } from '@/lib/connectors/whois';
+import { MetaAdLibraryConnector } from '@/lib/connectors/meta';
+import { DuckDuckGoLinkedInConnector } from '@/lib/connectors/duckduckgo-linkedin';
 import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scraper';
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
@@ -362,6 +365,65 @@ export async function POST(req: Request) {
       }
 
       // ====================================================================
+      // Fetch qualitative signals (Tech Stack, Meta Ads, WHOIS)
+      // ====================================================================
+      let techStack: string[] = [];
+      let domainAgeYears: number | null = null;
+      let hasActiveAds: boolean = false;
+
+      if (normalized.domain) {
+        // Run in parallel to avoid stalling
+        const domainStr = extractDomain(normalized.domain) || normalized.domain;
+        const [techRes, whoisRes, metaRes, ddgRes] = await Promise.allSettled([
+          new CustomTechConnector().search({ url: normalized.domain }),
+          new WhoisConnector().search({ domain: domainStr }),
+          new MetaAdLibraryConnector().search({ keyword: normalized.company_name }),
+          new DuckDuckGoLinkedInConnector().search({ companyName: normalized.company_name, location: config.location })
+        ]);
+
+        if (techRes.status === 'fulfilled' && techRes.value.results.length > 0) {
+          techStack = techRes.value.results[0].tech || [];
+          const evidence = new CustomTechConnector().getEvidence(techRes.value.results[0]);
+          allEvidence.push(...evidence);
+        }
+
+        if (whoisRes.status === 'fulfilled' && whoisRes.value.results.length > 0) {
+          const evidence = new WhoisConnector().getEvidence(whoisRes.value.results[0]);
+          allEvidence.push(...evidence);
+          const ageEv = evidence.find(e => e.signal_type === 'domain_age');
+          if (ageEv) {
+            const match = ageEv.evidence_text.match(/\((\d+) years/);
+            if (match) domainAgeYears = parseInt(match[1], 10);
+          }
+        }
+
+        if (metaRes.status === 'fulfilled' && metaRes.value.results.length > 0) {
+          hasActiveAds = metaRes.value.results.some(r => r.ad_active_status === 'ACTIVE');
+          if (hasActiveAds) {
+            allEvidence.push({
+              category: 'budget',
+              signal_type: 'active_ads',
+              evidence_text: `Currently running active ads on Meta Platforms`
+            });
+          } else {
+            allEvidence.push({
+              category: 'gap',
+              signal_type: 'no_ads',
+              evidence_text: `No active ads found on Meta Platforms`
+            });
+          }
+        }
+        
+        if (ddgRes.status === 'fulfilled' && ddgRes.value.results.length > 0) {
+          const founderName = ddgRes.value.results[0].contact_name;
+          if (founderName) {
+            normalized.contact_name = founderName;
+            allEvidence.push(...new DuckDuckGoLinkedInConnector().getEvidence(ddgRes.value.results[0]));
+          }
+        }
+      }
+
+      // ====================================================================
       // ENRICHMENT & SCORING (New Quality Engine)
       // ====================================================================
       const enriched = await enrichLead({
@@ -369,6 +431,9 @@ export async function POST(req: Request) {
         domain: normalized.domain,
         industry: normalized.industry,
         phone: normalized.phone,
+        tech_stack: techStack,
+        domain_age_years: domainAgeYears,
+        has_active_ads: hasActiveAds,
         email: discoveredEmail,
         location: normalized.location,
         website_status,
@@ -416,6 +481,7 @@ export async function POST(req: Request) {
           phone: enriched.phone,
           email: enriched.email,
           location: enriched.location,
+          contact_name: enriched.contact_name,
           status: 'New',
           // New enriched fields
           email_verified: enriched.email_verified,

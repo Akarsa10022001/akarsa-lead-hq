@@ -22,7 +22,7 @@ export class MetaAdLibraryConnector implements Connector {
       const response = await fetch(url.toString());
       if (!response.ok) return { results: [] };
       const data = await response.json();
-      return data.data || [];
+      return { results: data.data || [] };
     } catch (e) {
       console.error(e);
       return { results: [] };
