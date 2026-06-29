@@ -24,8 +24,10 @@ export class FoursquareConnector implements Connector {
     // Attempt to map category or default to dining
     const categoryId = categoryMap[query.type.toLowerCase()] || '13065';
     
+    console.log(`[foursquare] received query.limit = ${query.limit}`);
     // Determine the safe limit (clamp to Foursquare's max 50)
     const safeLimit = Math.min(Math.max(query.limit || 20, 1), 50);
+    console.log(`[foursquare] safeLimit after clamp = ${safeLimit}`);
     
     // We search near the provided location, filtering by category
     const url = new URL('https://api.foursquare.com/v3/places/search');

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
+    "arima": "^0.2.8",
     "cheerio": "^1.2.0",
     "deep-email-validator": "^0.1.27",
     "framer-motion": "^12.42.0",

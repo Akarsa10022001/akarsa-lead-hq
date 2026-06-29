@@ -90,6 +90,10 @@ export async function POST(req: Request) {
     if (rawLeads.length === 0 && process.env.FOURSQUARE_API_KEY) {
       console.log('[Discovery] Stage 1: Falling back to Foursquare API...');
       primarySource = 'foursquare';
+      
+      console.log(`[route] config.maxLeads = ${config.maxLeads}`);
+      console.log(`[route] passing limit to connector = ${config.maxLeads}`);
+      
       rawLeads = await foursquareConnector.search({
         location: config.location,
         type: config.businessType,

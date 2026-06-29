@@ -47,8 +47,9 @@ export class GooglePlacesConnector implements Connector {
     // Step 3: Fetch Place Details for each result (to get phone, website)
     const detailedResults: any[] = [];
 
-    // Process up to 10 to stay within free tier limits
-    for (const place of results.slice(0, 10)) {
+    // Process up to the requested limit
+    const safeLimit = Math.min(Math.max(query.limit || 20, 1), 50);
+    for (const place of results.slice(0, safeLimit)) {
       try {
         const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_phone_number,international_phone_number,website,formatted_address,rating,user_ratings_total,business_status,types,url&key=${apiKey}`;
         

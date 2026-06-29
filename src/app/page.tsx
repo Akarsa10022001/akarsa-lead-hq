@@ -7,7 +7,6 @@ import { Users, Mail, CheckCircle2, TrendingUp, Loader2, BrainCircuit } from "lu
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import forecastData from '../../ml/forecasts/lead_forecast.json';
 
 export default function Home() {
   const [isScanning, setIsScanning] = useState(false);
@@ -19,6 +18,7 @@ export default function Home() {
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [lastRun, setLastRun] = useState<string>("Unknown");
+  const [forecastState, setForecastState] = useState<{ historyDays: number; forecast: any | null }>({ historyDays: 0, forecast: null });
 
   useEffect(() => {
     fetchDashboardData();
@@ -75,6 +75,17 @@ export default function Home() {
       setLastRun(new Date(lastLead.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
     } else {
       setLastRun("Never");
+    }
+
+    // 4. Fetch AI Forecast
+    try {
+      const forecastRes = await fetch('/api/forecast');
+      if (forecastRes.ok) {
+        const data = await forecastRes.json();
+        setForecastState(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch forecast", e);
     }
   };
 
@@ -176,13 +187,13 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold">30-Day Lead Pipeline Forecast</h3>
-                  {metrics.totalLeads >= 14 ? (
+                  {forecastState.historyDays >= 14 && forecastState.forecast ? (
                     <p className="text-xs text-muted-foreground">
-                      Powered by ARIMA · {forecastData.summary.predicted_total_30d} predicted leads · Avg {forecastData.summary.predicted_avg_daily}/day
+                      Powered by ARIMA · {forecastState.forecast.summary.predicted_total_30d} predicted leads · Avg {forecastState.forecast.summary.predicted_avg_daily}/day
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Powered by ARIMA
+                      Building forecast — need ~14 days of activity (currently Day {forecastState.historyDays} of 14)
                     </p>
                   )}
                 </div>
@@ -192,73 +203,68 @@ export default function Home() {
               </span>
             </div>
             
-            {metrics.totalLeads >= 14 ? (
+            {forecastState.historyDays >= 14 && forecastState.forecast ? (
               <div className="w-full h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={forecastData.forecast.map((d: any) => ({
+                  <AreaChart data={forecastState.forecast.forecast.map((d: any) => ({
                     date: d.date.slice(5), // MM-DD format
                     predicted: d.predicted_leads,
-                    low: d.confidence_low,
-                    high: d.confidence_high,
-                    dayName: d.day_name
                   }))}>
                     <defs>
                       <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                     <XAxis 
                       dataKey="date" 
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={false}
                       axisLine={false}
-                      interval={4}
+                      dy={10}
                     />
                     <YAxis 
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                       tickLine={false}
                       axisLine={false}
-                      width={30}
+                      dx={-10}
                     />
                     <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '12px',
-                        fontSize: '13px'
-                      }}
-                      formatter={(value: any, name: any) => {
-                        const labels: any = { predicted: 'Predicted Leads', low: 'Low Estimate', high: 'High Estimate' };
-                        return [value, labels[name] || name];
-                      }}
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                      itemStyle={{ color: 'hsl(var(--foreground))' }}
                     />
-                    <Area type="monotone" dataKey="high" stroke="none" fill="url(#colorConfidence)" />
-                    <Area type="monotone" dataKey="low" stroke="none" fill="url(#colorConfidence)" />
-                    <Area type="monotone" dataKey="predicted" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#colorPredicted)" dot={false} activeDot={{ r: 5, strokeWidth: 2 }} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="predicted" 
+                      stroke="#10b981" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorPredicted)" 
+                      animationDuration={1500}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="w-full h-[250px] flex flex-col items-center justify-center border-2 border-dashed border-border rounded-xl bg-secondary/20">
-                <BrainCircuit className="w-10 h-10 text-muted-foreground mb-4 opacity-50" />
-                <h4 className="text-sm font-bold text-foreground">Not enough data to forecast yet</h4>
-                <p className="text-xs text-muted-foreground max-w-sm text-center mt-2 mb-4">
-                  Keep scanning for leads and recording activity. The ARIMA model requires a baseline of historical data to predict pipeline volume accurately.
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="w-48 h-2 bg-secondary rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary"
-                      style={{ width: `${Math.min(100, (metrics.totalLeads / 14) * 100)}%` }}
-                    />
+              <div className="w-full h-[250px] flex items-center justify-center border-2 border-dashed border-border rounded-xl bg-muted/20">
+                <div className="text-center max-w-sm px-6">
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
                   </div>
-                  <span className="text-xs font-bold text-primary font-mono">{metrics.totalLeads}/14 required</span>
+                  <h4 className="text-foreground font-semibold mb-2">Analyzing Pipeline Data</h4>
+                  <p className="text-muted-foreground text-sm">
+                    Keep scanning for leads and recording activity. The ARIMA model requires a baseline of historical data to predict pipeline volume accurately.
+                  </p>
+                  <div className="flex items-center justify-center gap-4 mt-6">
+                    <div className="w-48 h-2 bg-secondary rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary"
+                        style={{ width: `${Math.min(100, (forecastState.historyDays / 14) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-bold text-primary font-mono">{forecastState.historyDays}/14 required</span>
+                  </div>
                 </div>
               </div>
             )}
