@@ -55,7 +55,7 @@ export class DuckDuckGoLinkedInConnector implements Connector {
   normalize(rawRecord: any): NormalizedLead {
     return {
       company_name: 'Unknown',
-      domain: null,
+      domain: undefined,
       raw_data: rawRecord,
       source_name: this.name,
       evidence: this.getEvidence(rawRecord)
