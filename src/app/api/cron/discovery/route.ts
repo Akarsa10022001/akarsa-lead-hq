@@ -18,7 +18,7 @@ import pLimit from 'p-limit';
  * Stage 3: Email Pattern Guesser → try common patterns + MX verification
  * Stage 4: Hunter.io (optional fallback) → verified emails from Hunter's database
  */
-export const maxDuration = 60; // Allow up to 60s for Vercel Hobby
+export const maxDuration = 300; // Maximum allowed on Hobby with Fluid Compute
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
