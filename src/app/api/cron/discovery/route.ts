@@ -19,6 +19,8 @@ import pLimit from 'p-limit';
  * Stage 4: Hunter.io (optional fallback) → verified emails from Hunter's database
  */
 export const maxDuration = 60; // Allow up to 60s for Vercel Hobby
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 interface DiscoveryConfig {
   location: string;
