@@ -43,7 +43,7 @@ export async function GET() {
     const tsData = completeDates.map(date => dailyCounts[date]);
     const actualHistoryDays = tsData.length;
 
-    if (actualHistoryDays < 14) {
+    if (actualHistoryDays < 7) {
       return NextResponse.json({ historyDays: actualHistoryDays, forecast: null });
     }
 

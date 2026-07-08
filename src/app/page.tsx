@@ -207,13 +207,13 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold font-heading uppercase tracking-wide">30-Day Lead Pipeline Forecast</h3>
-                  {forecastState.historyDays >= 14 && forecastState.forecast ? (
+                  {forecastState.historyDays >= 7 && forecastState.forecast ? (
                     <p className="text-xs text-muted-foreground mt-1">
                       Powered by ARIMA · {forecastState.forecast.summary.predicted_total_30d} predicted leads · Avg {forecastState.forecast.summary.predicted_avg_daily}/day
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Building forecast — need ~14 days of activity (currently Day {forecastState.historyDays} of 14)
+                      Building forecast — need ~7 days of activity (currently Day {forecastState.historyDays} of 7)
                     </p>
                   )}
                 </div>
@@ -223,7 +223,7 @@ export default function Home() {
               </span>
             </div>
             
-            {forecastState.historyDays >= 14 && forecastState.forecast ? (
+            {forecastState.historyDays >= 7 && forecastState.forecast ? (
               <div className="w-full h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={forecastState.forecast.forecast.map((d: any) => ({
@@ -280,10 +280,10 @@ export default function Home() {
                     <div className="w-48 h-2 bg-secondary rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-primary"
-                        style={{ width: `${Math.min(100, (forecastState.historyDays / 14) * 100)}%` }}
+                        style={{ width: `${Math.min(100, (forecastState.historyDays / 7) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-xs font-bold text-primary font-mono">{forecastState.historyDays}/14 required</span>
+                    <span className="text-xs font-bold text-primary font-mono">{forecastState.historyDays}/7 required</span>
                   </div>
                 </div>
               </div>
