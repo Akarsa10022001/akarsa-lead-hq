@@ -11,8 +11,12 @@ export async function POST(req: Request) {
     const { leadId } = await req.json();
     if (!leadId) return NextResponse.json({ error: 'Missing leadId' }, { status: 400 });
 
-    const { data: lead, error } = await supabase.from('leads').select('*, lead_signals(*)').eq('id', leadId).single();
+    const { data: lead, error } = await supabase.from('leads').select('*').eq('id', leadId).single();
     if (error || !lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+
+    // Fetch signals safely
+    const { data: signalsData } = await supabase.from('lead_signals').select('*').eq('lead_id', leadId).catch(() => ({ data: null }));
+    lead.lead_signals = signalsData || [];
 
     const signals = lead.lead_signals?.map((s: any) => s.evidence_text).join('; ') || 'No specific signals found.';
 

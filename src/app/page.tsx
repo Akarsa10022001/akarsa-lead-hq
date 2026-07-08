@@ -92,16 +92,25 @@ export default function Home() {
       console.error("Failed to fetch forecast", e);
     }
 
-    // 5. Fetch Hit List
+    // 5. Fetch Hit List (Safe fetch to prevent crashing if lead_signals is missing)
     const { data: hitData } = await supabase
       .from('leads')
-      .select('*, lead_signals(*)')
+      .select('*')
       .eq('status', 'New')
       .gt('quality_score', 0)
       .order('quality_score', { ascending: false, nullsFirst: false })
       .limit(15);
     
-    if (hitData) setHitListLeads(hitData);
+    if (hitData) {
+      // Attempt to fetch signals separately so it doesn't crash the main query if table is missing
+      const { data: signals } = await supabase.from('lead_signals').select('*').in('lead_id', hitData.map(l => l.id)).catch(() => ({ data: null }));
+      
+      const leadsWithSignals = hitData.map(lead => ({
+        ...lead,
+        lead_signals: signals ? signals.filter(s => s.lead_id === lead.id) : []
+      }));
+      setHitListLeads(leadsWithSignals);
+    }
   };
 
   const [scanLocation, setScanLocation] = useState("");
