@@ -559,6 +559,8 @@ Return valid JSON with keys "hook" and "message".`;
           review_count: enriched.review_count,
           social_links: enriched.social_links,
           quality_score: enriched.quality_score,
+          agency_fit_score: enriched.agency_fit_score || 0,
+          contactability_score: enriched.contactability_score || 0,
           score_factors: enriched.score_factors,
           enriched_at: enriched.enriched_at,
           // Legacy fields

@@ -16,9 +16,10 @@ export async function POST(req: Request) {
 
     const signals = lead.lead_signals?.map((s: any) => s.evidence_text).join('; ') || 'No specific signals found.';
 
-    const prompt = `You are writing a cold outreach message to a Marketing Agency: "${lead.company_name}".
-Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard for agencies.
+    const prompt = `You are writing a cold outreach message to a B2B company: "${lead.company_name}".
+Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard.
 Use ONLY these scraped facts to personalize the message: [${signals}].
+If there are no facts provided, invent a highly unique, engaging question related to their company name or location to start the message. DO NOT use the exact same hook twice.
 If the facts show they manage social media for multiple clients, mention how Akarsa One provides one dashboard for all their clients' Instagram/YouTube analytics and automated monthly reports.
 Write a casual, 2-sentence English version and a Hinglish version.
 Return valid JSON with keys "english" and "hinglish".`;
