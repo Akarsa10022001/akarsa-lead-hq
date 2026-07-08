@@ -26,21 +26,21 @@ Return valid JSON with keys "english" and "hinglish".`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-    let message = '';
+    let message: any = '';
     try {
       const result = await callLLM({
         task: 'Generate short outreach message',
         prompt,
         preferredProvider: 'groq'
       });
-      message = result?.message || result?.hook || result?.text || JSON.stringify(result);
+      message = result?.message || result?.hook || result?.text || result;
     } finally {
       clearTimeout(timeout);
     }
 
     let messageStr = '';
     if (typeof message === 'string') messageStr = message;
-    else if (message.english) messageStr = `[EN] ${message.english}\n\n[HI] ${message.hinglish || ''}`;
+    else if (message?.english) messageStr = `[EN] ${message.english}\n\n[HI] ${message.hinglish || ''}`;
 
     if (!messageStr || messageStr.length < 5) {
       throw new Error("Invalid generation");
