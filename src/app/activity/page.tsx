@@ -95,7 +95,7 @@ export default function ActivityLog() {
           className="max-w-6xl mx-auto"
         >
           <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 bg-primary/10 rounded-none">
+            <div className="p-3 bg-primary/10 rounded-xl">
               <Activity className="w-6 h-6 text-primary" />
             </div>
             <div>
@@ -104,7 +104,7 @@ export default function ActivityLog() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-none overflow-hidden shadow-none">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

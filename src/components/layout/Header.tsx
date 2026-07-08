@@ -50,7 +50,7 @@ export default function Header() {
               className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors relative border border-transparent hover:border-border"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-none animate-pulse"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full animate-pulse"></span>
             </button>
             <button 
               onClick={handleSettingsClick}
@@ -75,19 +75,19 @@ export default function Header() {
             <div className="p-6 flex justify-end border-b border-border">
               <button 
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-10 h-10 rounded-none bg-secondary flex items-center justify-center"
+                className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
             <nav className="flex-1 p-8 flex flex-col gap-6 text-xl font-bold">
-              <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-4 p-4 rounded-none ${pathname === '/' ? 'bg-primary/20 text-primary' : 'text-foreground'}`}>
+              <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-4 p-4 rounded-xl ${pathname === '/' ? 'bg-primary/20 text-primary' : 'text-foreground'}`}>
                 <LayoutDashboard /> Command Center
               </Link>
-              <Link href="/radar" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-4 p-4 rounded-none ${pathname === '/radar' ? 'bg-primary/20 text-primary' : 'text-foreground'}`}>
+              <Link href="/radar" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-4 p-4 rounded-xl ${pathname === '/radar' ? 'bg-primary/20 text-primary' : 'text-foreground'}`}>
                 <Target /> Lead Radar
               </Link>
-              <Link href="/campaigns" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-4 p-4 rounded-none ${pathname === '/campaigns' ? 'bg-primary/20 text-primary' : 'text-foreground'}`}>
+              <Link href="/campaigns" onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-4 p-4 rounded-xl ${pathname === '/campaigns' ? 'bg-primary/20 text-primary' : 'text-foreground'}`}>
                 <Send /> Outreach Campaigns
               </Link>
             </nav>

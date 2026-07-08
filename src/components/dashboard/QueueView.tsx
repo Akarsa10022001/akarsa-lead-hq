@@ -69,9 +69,9 @@ export default function QueueView() {
 
   if (messages.length === 0) {
     return (
-      <div className="p-12 text-center border border-dashed border-border rounded-none mt-8">
+      <div className="p-12 text-center border border-dashed border-border rounded-xl mt-8">
         <CheckCircle2 className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-        <h3 className="text-xl font-bold font-heading uppercase tracking-wide">Queue is Empty</h3>
+        <h3 className="text-xl font-bold">Queue is Empty</h3>
         <p className="text-muted-foreground mt-2">The overnight pipeline has no pending drafts right now.</p>
       </div>
     );
@@ -81,25 +81,25 @@ export default function QueueView() {
     <div className="mt-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold font-heading uppercase tracking-wide">Approval Queue</h2>
+          <h2 className="text-2xl font-bold">Approval Queue</h2>
           <p className="text-muted-foreground">Review autonomous drafts before they send.</p>
         </div>
         <button 
           onClick={handleApprove}
           disabled={selected.size === 0 || approving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground uppercase tracking-widest text-sm font-bold border border-primary disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium disabled:opacity-50"
         >
           <Send className="w-4 h-4" />
           Approve {selected.size > 0 ? `(${selected.size})` : ''}
         </button>
       </div>
 
-      <div className="bg-card border border-border rounded-none overflow-hidden">
+      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-lg">
         <table className="w-full text-left text-sm">
           <thead className="bg-secondary/50 border-b border-border">
             <tr>
               <th className="p-4 w-12">
-                <input type="checkbox" checked={selected.size > 0 && selected.size === messages.length} onChange={selectAll} className="rounded-none border-border" />
+                <input type="checkbox" checked={selected.size > 0 && selected.size === messages.length} onChange={selectAll} className="rounded border-border" />
               </th>
               <th className="p-4 font-medium text-muted-foreground">Lead</th>
               <th className="p-4 font-medium text-muted-foreground w-24">Channel</th>
@@ -111,7 +111,7 @@ export default function QueueView() {
             {messages.map(msg => (
               <tr key={msg.id} className="hover:bg-secondary/20 transition-colors">
                 <td className="p-4">
-                  <input type="checkbox" checked={selected.has(msg.id)} onChange={() => toggleSelect(msg.id)} className="rounded-none border-border" />
+                  <input type="checkbox" checked={selected.has(msg.id)} onChange={() => toggleSelect(msg.id)} className="rounded border-border" />
                 </td>
                 <td className="p-4 font-medium">
                   {msg.outreach_sequences.leads.company_name}

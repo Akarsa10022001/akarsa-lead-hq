@@ -7,7 +7,6 @@ import { Send, Copy, AlertCircle, Sparkles, CheckCircle2, MessageCircle, Mail } 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import QueueView from "@/components/dashboard/QueueView";
 
 function CampaignsContent() {
   const searchParams = useSearchParams();
@@ -105,8 +104,13 @@ function CampaignsContent() {
         <Sidebar />
         <Header />
         <main className="md:ml-72 p-4 md:p-8 flex justify-center items-center md:h-[calc(100vh-80px)] py-12">
-          <div className="w-full">
-            <QueueView />
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-bold">No Lead Selected</h2>
+            <p className="text-muted-foreground mt-2 mb-6">Select a lead from the Radar to launch a campaign.</p>
+            <button onClick={() => router.push('/radar')} className="px-6 py-2 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90">
+              Go to Radar
+            </button>
           </div>
         </main>
       </div>
@@ -167,7 +171,7 @@ function CampaignsContent() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-3xl bg-card border border-border rounded-none shadow-none overflow-hidden relative my-auto"
+          className="w-full max-w-3xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden relative my-auto"
         >
           {isSent && (
             <motion.div 
@@ -196,7 +200,7 @@ function CampaignsContent() {
               <p className="text-sm text-muted-foreground mt-1">Target: {lead.contact_name || "Founder"} ({lead.company_name})</p>
             </div>
             
-            <div className="flex items-center gap-2 bg-background border border-border p-1 rounded-none">
+            <div className="flex items-center gap-2 bg-background border border-border p-1 rounded-xl">
               <button 
                 onClick={() => setChannel('email')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${channel === 'email' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary'}`}
@@ -239,10 +243,10 @@ function CampaignsContent() {
                   value={body}
                   onChange={e => setBody(e.target.value)}
                   onBlur={handleSaveDraft}
-                  className="w-full p-4 bg-background border border-primary rounded-none text-foreground whitespace-pre-line leading-relaxed text-sm md:text-base font-medium min-h-[300px] focus:outline-none"
+                  className="w-full p-4 bg-background border border-primary rounded-xl text-foreground whitespace-pre-line leading-relaxed text-sm md:text-base font-medium min-h-[300px] focus:outline-none"
                 />
               ) : (
-                <div className="p-4 bg-secondary/50 border border-border rounded-none text-foreground/90 whitespace-pre-line leading-relaxed text-sm md:text-base font-medium max-h-[40vh] overflow-y-auto">
+                <div className="p-4 bg-secondary/50 border border-border rounded-xl text-foreground/90 whitespace-pre-line leading-relaxed text-sm md:text-base font-medium max-h-[40vh] overflow-y-auto">
                   {body}
                 </div>
               )}
@@ -274,14 +278,14 @@ function CampaignsContent() {
             <div className="flex gap-3 w-full sm:w-auto">
               <button 
                 onClick={() => setIsEditing(!isEditing)}
-                className={`flex-1 sm:flex-none px-6 py-2.5 rounded-none border border-border text-sm font-bold transition-all ${isEditing ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-secondary'}`}
+                className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-border text-sm font-bold transition-all ${isEditing ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-secondary'}`}
               >
                 {isEditing ? 'Done Editing' : 'Edit'}
               </button>
               <button 
                 onClick={handleSend}
                 disabled={loading || (channel === 'whatsapp' && !lead.phone && !testPhone)}
-                className="flex-2 sm:flex-none px-6 py-2.5 rounded-none bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(147,51,234,0.4)] disabled:opacity-50"
+                className="flex-2 sm:flex-none px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(147,51,234,0.4)] disabled:opacity-50"
               >
                 <Send className="w-4 h-4" /> {loading ? "Firing..." : `Send via ${channel === 'email' ? 'Email' : 'WhatsApp'}`}
               </button>

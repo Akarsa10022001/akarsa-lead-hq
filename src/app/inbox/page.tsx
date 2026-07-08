@@ -22,7 +22,6 @@ export default function Inbox() {
           sent_at,
           status,
           channel,
-          classification,
           outreach_sequences!inner (
             lead_id,
             leads!inner (
@@ -33,17 +32,10 @@ export default function Inbox() {
           )
         `)
         .eq('status', 'received')
-        .neq('classification', 'auto_reply_bot')
         .order('sent_at', { ascending: false });
 
       if (!error && data) {
-        // Sort interested leads to the top
-        const sorted = [...data].sort((a, b) => {
-          if (a.classification === 'human_interested' && b.classification !== 'human_interested') return -1;
-          if (b.classification === 'human_interested' && a.classification !== 'human_interested') return 1;
-          return 0;
-        });
-        setMessages(sorted);
+        setMessages(data);
       } else {
         console.error("Failed to fetch inbox:", error);
       }
@@ -84,7 +76,7 @@ export default function Inbox() {
           className="max-w-5xl mx-auto"
         >
           <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 bg-primary/10 rounded-none">
+            <div className="p-3 bg-primary/10 rounded-xl">
               <InboxIcon className="w-6 h-6 text-primary" />
             </div>
             <div>
@@ -93,7 +85,7 @@ export default function Inbox() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-none overflow-hidden shadow-none">
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl">
             {loading ? (
               <div className="p-12 text-center text-muted-foreground">Syncing with Meta...</div>
             ) : messages.length === 0 ? (
@@ -114,15 +106,9 @@ export default function Inbox() {
                   >
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-3">
-                        {msg.classification === 'human_interested' ? (
-                          <span className="px-2.5 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3 h-3" /> HOT LEAD
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3 h-3" /> Replied
-                          </span>
-                        )}
+                        <span className="px-2.5 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3 h-3" /> Engaged
+                        </span>
                         <h3 className="text-lg font-bold">
                           {msg.outreach_sequences.leads.contact_name || 'Founder'} <span className="text-muted-foreground font-normal">at</span> {msg.outreach_sequences.leads.company_name}
                         </h3>
@@ -131,7 +117,7 @@ export default function Inbox() {
                         </span>
                       </div>
                       
-                      <div className="p-4 bg-secondary/50 rounded-none border border-border text-foreground/90 font-medium">
+                      <div className="p-4 bg-secondary/50 rounded-xl border border-border text-foreground/90 font-medium">
                         "{msg.draft_content}"
                       </div>
                     </div>
