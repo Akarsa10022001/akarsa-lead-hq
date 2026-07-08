@@ -27,7 +27,7 @@ export class FoursquareConnector implements Connector {
     url.searchParams.append('categories', categoryId);
     url.searchParams.append('limit', safeLimit.toString());
     // Request specific fields to minimize payload and ensure we get what we need
-    url.searchParams.append('fields', 'fsq_id,name,location,categories,tel,website,rating');
+    url.searchParams.append('fields', 'fsq_id,name,location,categories,tel,website,rating,stats');
     
     if (query.cursor) {
       url.searchParams.append('cursor', query.cursor);
@@ -93,6 +93,7 @@ export class FoursquareConnector implements Connector {
       phone: rawRecord.tel || null,
       location: locationStr,
       rating: rawRecord.rating ? rawRecord.rating / 2 : undefined,
+      review_count: rawRecord.stats?.total_ratings,
       raw_data: rawRecord,
       source_name: this.name,
       evidence: this.getEvidence(rawRecord)

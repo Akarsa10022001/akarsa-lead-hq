@@ -79,17 +79,17 @@ export function calculateQualityScore(lead: any) {
     factors.phone = 20;
   }
 
-  if (['none', 'free_builder'].includes(lead.website_status)) {
+  if (['none', 'free_builder', 'dead', 'no_https'].includes(lead.website_status)) {
     score += 15;
     factors.needs_website = 15;
   }
 
-  if (lead.rating !== undefined && lead.rating !== null && lead.rating < 4.0) {
+  if (lead.rating !== undefined && lead.rating !== null && lead.rating < 4.2) {
     score += 10;
     factors.low_rating = 10;
   }
 
-  if (lead.review_count !== undefined && lead.review_count !== null && lead.review_count < 20) {
+  if (lead.review_count !== undefined && lead.review_count !== null && lead.review_count < 50) {
     score += 10;
     factors.low_reviews = 10;
   }
@@ -126,8 +126,8 @@ export function calculateQualityScore(lead: any) {
   }
 
   if (lead.email_quality === 'none' && !lead.phone_e164) {
-    score -= 20;
-    factors.uncontactable = -20;
+    score = 0;
+    factors.uncontactable = -100;
   }
 
   // Cap score to 100 (Max is actually ~165 now but we normalize to 100)
