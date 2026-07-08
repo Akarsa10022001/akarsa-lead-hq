@@ -21,7 +21,7 @@ export const INDUSTRY_MAP: IndustryMapping[] = [
   { label: 'Advertising Agency', googleType: 'advertising_agency', foursquareId: '11002' },
   { label: 'Branding Studio', googleType: 'graphic_designer', foursquareId: '11002' },
   { label: 'PR Firm', googleType: 'public_relations_firm', foursquareId: '11002' },
-  { label: 'Marketing Consultant', googleType: 'consultant', foursquareId: '11002' },
+  { label: 'Marketing Consultant', googleType: 'advertising_agency', foursquareId: '11002' },
 ];
 
 export function getRandomIndustryLabel(): string {
