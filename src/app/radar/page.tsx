@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2 } from "lucide-react";
+import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -234,6 +234,24 @@ export default function Radar() {
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
+                      {/* WhatsApp Send Button - always visible */}
+                      {lead.phone && (
+                        <a
+                          href={`https://wa.me/${(lead.phone || '').replace(/[\s\-()]/g, '').replace(/^\+/, '')}?text=${encodeURIComponent(lead.ai_hook_draft || `Hi! I came across ${lead.company_name} and had a quick question.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={async (e) => {
+                            // Mark lead as Contacted when they click Send
+                            await supabase.from('leads').update({ status: 'Contacted' }).eq('id', lead.id);
+                            setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'Contacted' } : l));
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#25D366] text-white hover:bg-[#20bd5a] hover:shadow-lg hover:shadow-[#25D366]/30 transition-all cursor-pointer border border-[#25D366] font-bold text-[10px] uppercase tracking-widest"
+                          title="Send via WhatsApp"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          Send
+                        </a>
+                      )}
                       <Link 
                         href={`/campaigns?leadId=${lead.id}`}
                         className="inline-block p-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all opacity-0 group-hover:opacity-100 border border-primary"
