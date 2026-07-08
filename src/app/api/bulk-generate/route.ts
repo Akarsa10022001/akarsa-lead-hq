@@ -11,11 +11,17 @@ export async function POST(req: Request) {
     const { leadId } = await req.json();
     if (!leadId) return NextResponse.json({ error: 'Missing leadId' }, { status: 400 });
 
-    const { data: lead, error } = await supabase.from('leads').select('*').eq('id', leadId).single();
+    const { data: lead, error } = await supabase.from('leads').select('*, lead_signals(*)').eq('id', leadId).single();
     if (error || !lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    const prompt = `Write a short, highly personalized B2B outreach message (under 50 words) to "${lead.company_name}" (Industry: ${lead.industry}). Use this angle: ${lead.ai_hook_draft || 'You have a great business'}. Do NOT include subject lines or placeholders.`;
-    
+    const signals = lead.lead_signals?.map((s: any) => s.evidence_text).join('; ') || 'No specific signals found.';
+
+    const prompt = `You are writing a cold outreach message to a Marketing Agency: "${lead.company_name}".
+Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard for agencies.
+Use ONLY these scraped facts to personalize the message: [${signals}].
+If the facts show they manage social media for multiple clients, mention how Akarsa One provides one dashboard for all their clients' Instagram/YouTube analytics and automated monthly reports.
+Write a casual, 2-sentence English version and a Hinglish version.
+Return valid JSON with keys "english" and "hinglish".`;
     // 8s abort controller
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -32,14 +38,18 @@ export async function POST(req: Request) {
       clearTimeout(timeout);
     }
 
-    if (!message || message.length < 5) {
+    let messageStr = '';
+    if (typeof message === 'string') messageStr = message;
+    else if (message.english) messageStr = `[EN] ${message.english}\n\n[HI] ${message.hinglish || ''}`;
+
+    if (!messageStr || messageStr.length < 5) {
       throw new Error("Invalid generation");
     }
 
     // Save back to lead for review
-    await supabase.from('leads').update({ ai_hook_draft: message }).eq('id', leadId);
+    await supabase.from('leads').update({ ai_hook_draft: messageStr }).eq('id', leadId);
 
-    return NextResponse.json({ success: true, message });
+    return NextResponse.json({ success: true, message: messageStr });
   } catch (err: any) {
     if (err.name === 'AbortError') {
       return NextResponse.json({ error: 'Timeout' }, { status: 504 });

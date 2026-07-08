@@ -16,7 +16,12 @@ export const INDUSTRY_MAP: IndustryMapping[] = [
   { label: 'Home & Interiors', googleType: 'furniture_store', foursquareId: '17089' },
   { label: 'Professional Services', googleType: 'lawyer', foursquareId: '11085' },
   { label: 'Retail & Boutiques', googleType: 'clothing_store', foursquareId: '17000' },
-  { label: 'Travel & Tourism', googleType: 'travel_agency', foursquareId: '19028' },
+  { label: 'Digital Marketing Agency', googleType: 'advertising_agency', foursquareId: '11002' },
+  { label: 'Social Media Agency', googleType: 'advertising_agency', foursquareId: '11002' },
+  { label: 'Advertising Agency', googleType: 'advertising_agency', foursquareId: '11002' },
+  { label: 'Branding Studio', googleType: 'graphic_designer', foursquareId: '11002' },
+  { label: 'PR Firm', googleType: 'public_relations_firm', foursquareId: '11002' },
+  { label: 'Marketing Consultant', googleType: 'consultant', foursquareId: '11002' },
 ];
 
 export function getRandomIndustryLabel(): string {

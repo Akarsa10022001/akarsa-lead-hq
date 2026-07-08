@@ -58,81 +58,71 @@ export function classifyEmailQuality(email: string | null | undefined): string {
 }
 
 export function calculateQualityScore(lead: any) {
-  let score = 0;
+  let contact_score = 0;
+  let fit_score = 0;
   let factors: any = {};
 
+  // --- Contactability ---
   if (lead.email_verified) {
-    score += 30;
-    factors.verified_email = 30;
+    contact_score += 40;
+    factors.verified_email = 40;
   }
   
   if (lead.email_quality === 'named') {
-    score += 15;
-    factors.named_email = 15;
+    contact_score += 20;
+    factors.named_email = 20;
   } else if (lead.email_quality === 'role') {
-    score += 5;
-    factors.role_email = 5;
+    contact_score += 10;
+    factors.role_email = 10;
   }
 
   if (lead.phone_e164) {
-    score += 20;
-    factors.phone = 20;
-  }
-
-  if (['none', 'free_builder', 'dead', 'no_https'].includes(lead.website_status)) {
-    score += 15;
-    factors.needs_website = 15;
-  }
-
-  if (lead.rating !== undefined && lead.rating !== null && lead.rating < 4.2) {
-    score += 10;
-    factors.low_rating = 10;
-  }
-
-  if (lead.review_count !== undefined && lead.review_count !== null && lead.review_count < 50) {
-    score += 10;
-    factors.low_reviews = 10;
+    contact_score += 40;
+    factors.phone = 40;
   }
 
   if (lead.contact_name) {
-    score += 10;
-    factors.contact_name = 10;
+    contact_score += 20;
+    factors.contact_name = 20;
   }
 
-  // Tech Stack (Needs CRO / Speed Optimization)
-  if (lead.tech_stack) {
-    if (lead.tech_stack.includes('wordpress')) {
-      score += 15;
-      factors.uses_wordpress = 15;
-    }
-    if (lead.tech_stack.includes('shopify')) {
-      score += 15;
-      factors.uses_shopify = 15;
-    }
+  // --- Agency Fit (Akarsa One) ---
+  // These signals are passed in if extracted by the LLM
+  if (lead.manages_multiple_clients) {
+    fit_score += 40;
+    factors.multi_client = 40;
   }
-
-  // Domain Age (New business = budget & urgency)
-  if (lead.domain_age_years !== undefined && lead.domain_age_years !== null) {
-    if (lead.domain_age_years <= 1) {
-      score += 30;
-      factors.new_business = 30;
-    }
+  
+  if (lead.platforms_managed && lead.platforms_managed.length > 5) {
+    fit_score += 20;
+    factors.multi_platform = 20;
   }
-
-  // Meta Ads (Not advertising = marketing opportunity)
-  if (lead.domain && lead.has_active_ads === false) {
-    score += 20;
-    factors.no_active_ads = 20;
+  
+  if (lead.reporting_analytics_offering) {
+    fit_score += 30;
+    factors.offers_reporting = 30;
+  }
+  
+  if (lead.team_size_or_client_count) {
+    fit_score += 10;
+    factors.team_size_stated = 10;
   }
 
   if (lead.email_quality === 'none' && !lead.phone_e164) {
-    score = 0;
+    contact_score = 0;
+    fit_score = 0;
     factors.uncontactable = -100;
   }
 
-  // Cap score to 100 (Max is actually ~165 now but we normalize to 100)
+  // Normalize Contact to 50 max, Fit to 50 max
+  const norm_contact = Math.min(contact_score, 50);
+  const norm_fit = Math.min(fit_score, 50);
+  const total = norm_contact + norm_fit;
+
   return {
-    score: Math.min(Math.max(score, 0), 100),
+    score: total,
+    contact_score: norm_contact,
+    fit_score: norm_fit,
     factors: factors
   };
 }
@@ -154,9 +144,11 @@ export async function enrichLead(rawLead: any, locationHint: string) {
     enriched.phone_e164 = normalizePhone(enriched.phone, locationHint);
   }
 
-  const { score, factors } = calculateQualityScore(enriched);
+  const { score, contact_score, fit_score, factors } = calculateQualityScore(enriched);
   
   enriched.quality_score = score;
+  enriched.contactability_score = contact_score;
+  enriched.agency_fit_score = fit_score;
   enriched.score_factors = factors;
   enriched.enriched_at = new Date().toISOString();
 

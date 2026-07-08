@@ -96,6 +96,7 @@ export class FoursquareConnector implements Connector {
       review_count: rawRecord.stats?.total_ratings,
       raw_data: rawRecord,
       source_name: this.name,
+      source_url: `https://foursquare.com/v/${rawRecord.fsq_id}`,
       evidence: this.getEvidence(rawRecord)
     };
   }

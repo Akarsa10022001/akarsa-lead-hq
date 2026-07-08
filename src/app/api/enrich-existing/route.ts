@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { enrichLead } from '@/lib/enrichment/scorer';
+import { extractAgencySignals } from '@/lib/enrichment/agency-extractor';
 import pLimit from 'p-limit';
 
 export const maxDuration = 300; // 5 mins for large batches
@@ -66,6 +67,26 @@ export async function POST(req: Request) {
           try {
              const scrapeResult = await scrapeWebsiteEmails(lead.domain);
              website_status = scrapeResult.website_status;
+             
+             if (scrapeResult.homepage_text) {
+               const signals = await extractAgencySignals(scrapeResult.homepage_text, lead.domain);
+               if (signals) {
+                 const newEvidence = [];
+                 if (signals.manages_multiple_clients) newEvidence.push({ category: 'budget', signal_type: 'multi_client', evidence_text: `Manages multiple clients: ${signals.manages_multiple_clients}` });
+                 if (signals.platforms_managed) newEvidence.push({ category: 'budget', signal_type: 'platforms', evidence_text: `Platforms managed: ${signals.platforms_managed}` });
+                 if (signals.team_size_or_client_count) newEvidence.push({ category: 'budget', signal_type: 'team_size', evidence_text: `Size/Clients: ${signals.team_size_or_client_count}` });
+                 if (signals.reporting_analytics_offering) newEvidence.push({ category: 'budget', signal_type: 'reporting', evidence_text: `Reporting offering: ${signals.reporting_analytics_offering}` });
+                 
+                 for (const ev of newEvidence) {
+                   await supabase.from('lead_signals').insert({
+                     lead_id: lead.id,
+                     category: ev.category,
+                     signal_type: ev.signal_type,
+                     evidence_text: ev.evidence_text
+                   });
+                 }
+               }
+             }
           } catch {
              website_status = 'dead';
           }

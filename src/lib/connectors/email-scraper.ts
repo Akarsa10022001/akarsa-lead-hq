@@ -140,6 +140,7 @@ export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
   source_pages: string[];
   website_status: string;
   social_links: any;
+  homepage_text: string;
 }> {
   const allEmails = new Set<string>();
   const sourcePages: string[] = [];
@@ -170,13 +171,17 @@ export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
       const found = extractEmailsFromHTML(html);
       const socials = extractSocialLinks(html);
       if (detectFreeBuilder(html, url)) builderDetected = true;
-      return { url, found, socials, success: true };
+      const cheerio = await import('cheerio');
+      const $ = cheerio.load(html);
+      const text = $('body').text();
+      return { url, found, socials, text, success: true };
     }
-    return { url, found: [], socials: null, success: false };
+    return { url, found: [], socials: null, text: '', success: false };
   });
 
   const results = await Promise.all(fetchPromises);
   
+  let homepage_text = '';
   for (const res of results) {
     if (res.success) anySuccess = true;
     if (res.found.length > 0) {
@@ -186,6 +191,7 @@ export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
     if (res.socials) {
       social_links = { ...social_links, ...res.socials };
     }
+    homepage_text += ' ' + res.text;
   }
 
   if (!anySuccess) website_status = 'dead';
@@ -195,7 +201,8 @@ export async function scrapeWebsiteEmails(websiteUrl: string): Promise<{
     emails: Array.from(allEmails),
     source_pages: sourcePages,
     website_status,
-    social_links
+    social_links,
+    homepage_text
   };
 }
 

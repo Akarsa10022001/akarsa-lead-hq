@@ -95,7 +95,7 @@ export default function Home() {
     // 5. Fetch Hit List
     const { data: hitData } = await supabase
       .from('leads')
-      .select('*')
+      .select('*, lead_signals(*)')
       .eq('status', 'New')
       .gt('quality_score', 0)
       .order('quality_score', { ascending: false, nullsFirst: false })

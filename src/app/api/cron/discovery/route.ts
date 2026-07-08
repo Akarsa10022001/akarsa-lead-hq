@@ -12,6 +12,7 @@ import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
 import { callLLM } from '@/lib/llm';
 import { enrichLead } from '@/lib/enrichment/scorer';
+import { extractAgencySignals } from '@/lib/enrichment/agency-extractor';
 import { INDUSTRY_MAP } from '@/lib/connectors/industries';
 import pLimit from 'p-limit';
 
@@ -36,8 +37,8 @@ interface DiscoveryConfig {
 
 const DEFAULT_CONFIG: DiscoveryConfig = {
   location: '', // Will be dynamic
-  businessType: 'Auto',
-  osmTags: ['amenity=restaurant', 'amenity=cafe'],
+  businessType: 'Digital Marketing Agency',
+  osmTags: ['amenity=advertising_agency', 'amenity=marketing_agency', 'office=marketing'],
   maxLeads: parseInt(process.env.SCAN_LIMIT || '20', 10),
 };
 
@@ -69,7 +70,13 @@ export async function POST(req: Request) {
 
     // If location is completely blank, pick a random popular area as a fallback for the "Auto" mode
     if (!config.location || config.location.trim() === '') {
-      const autoLocations = ['Dubai, UAE', 'Pune, India', 'Indore, India', 'Mumbai, India', 'London, UK'];
+      const autoLocations = [
+        'Indore, India', 'Mumbai, India', 'Bangalore, India', 'Delhi, India',
+        'Dubai, UAE', 'Abu Dhabi, UAE',
+        'London, UK', 'Manchester, UK',
+        'New York, USA', 'Austin, USA', 'San Francisco, USA',
+        'Singapore', 'Sydney, Australia'
+      ];
       config.location = autoLocations[Math.floor(Math.random() * autoLocations.length)];
     }
 
@@ -294,6 +301,7 @@ export async function POST(req: Request) {
       let website_status = 'none';
       let social_links = null;
       let has_website = false;
+      let agency_signals: any = null;
 
       if (normalized.domain) {
         has_website = true;
@@ -313,6 +321,16 @@ export async function POST(req: Request) {
               evidence_text: `Email found on website (${scrapeResult.source_pages[0]}): ${discoveredEmail}`
             });
             console.log(`[Discovery]   ✓ Found email via scraping: ${discoveredEmail}`);
+          }
+          if (scrapeResult.homepage_text) {
+            console.log(`[Discovery] Extracting agency signals from website text...`);
+            agency_signals = await extractAgencySignals(scrapeResult.homepage_text, normalized.domain);
+            if (agency_signals) {
+              if (agency_signals.manages_multiple_clients) allEvidence.push({ category: 'budget', signal_type: 'multi_client', evidence_text: `Manages multiple clients: ${agency_signals.manages_multiple_clients}` });
+              if (agency_signals.platforms_managed) allEvidence.push({ category: 'budget', signal_type: 'platforms', evidence_text: `Platforms managed: ${agency_signals.platforms_managed}` });
+              if (agency_signals.team_size_or_client_count) allEvidence.push({ category: 'budget', signal_type: 'team_size', evidence_text: `Size/Clients: ${agency_signals.team_size_or_client_count}` });
+              if (agency_signals.reporting_analytics_offering) allEvidence.push({ category: 'budget', signal_type: 'reporting', evidence_text: `Reporting offering: ${agency_signals.reporting_analytics_offering}` });
+            }
           }
         } catch (err) {
           console.warn(`[Discovery]   ✗ Website scraping failed for ${normalized.domain}`);
@@ -474,7 +492,8 @@ export async function POST(req: Request) {
         rating: normalized.rating,
         review_count: normalized.review_count,
         contact_name: normalized.contact_name, // If provided by connector
-        social_links
+        social_links,
+        ...(agency_signals || {})
       }, config.location);
 
       // THE BOUNCER: Reject if we have absolutely no way to contact
@@ -488,16 +507,18 @@ export async function POST(req: Request) {
       // ====================================================================
       // AI Hook & Draft Generation
       // ====================================================================
-      let aiHook = 'Business needs digital growth support';
+      let aiHook = 'One dashboard for all your clients';
       let fullDraft = '';
       try {
-        const hasWebsite = !!normalized.domain;
-        const prompt = `Based on this business in ${config.location}: "${normalized.company_name}" (Industry: ${normalized.industry}). ${hasWebsite ? 'They have a website.' : 'They have NO website - this is a huge opportunity.'} 
+        const evidenceStr = allEvidence.map(e => e.evidence_text).join('; ');
+        const prompt = `You are writing a cold outreach message to a Marketing Agency in ${config.location}: "${normalized.company_name}".
+Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard for agencies.
+Use ONLY these scraped facts to personalize the message: [${evidenceStr}].
 1. Write a hyper-personalized 2-5 word sales hook.
-2. Write a short, value-first opening message (max 3 sentences). Include a specific insight or mini-audit about their digital presence (e.g., if no website, mention they are invisible for local searches). DO NOT use generic phrases like "Boost Local Visibility".
+2. Write a short, value-first opening message (max 3 sentences). Mention how Akarsa One provides one dashboard for all their clients' Instagram/YouTube analytics and automated monthly reports.
 Return valid JSON with keys "hook" and "message".`;
         const llmResult = await callLLM({
-          task: 'Generate hook and draft message for lead.',
+          task: 'Generate hook and draft message for agency lead.',
           prompt,
           preferredProvider: 'groq'
         });
@@ -521,6 +542,13 @@ Return valid JSON with keys "hook" and "message".`;
           location: enriched.location,
           contact_name: enriched.contact_name,
           status: 'New',
+          // New Akarsa One Segment & Provenance tracking
+          segment: 'marketing_agency',
+          sub_type: enriched.industry,
+          geo: enriched.location,
+          source_url: normalized.source_url || `https://google.com/search?q=${encodeURIComponent(enriched.company_name)}`,
+          email_source_url: discoveredEmail ? (emailSource === 'website_scrape' && social_links?.website ? social_links.website : 'https://hunter.io/search/' + enriched.domain) : null,
+          phone_source_url: enriched.phone ? normalized.source_url : null,
           // New enriched fields
           email_verified: enriched.email_verified,
           email_quality: enriched.email_quality,
@@ -533,7 +561,7 @@ Return valid JSON with keys "hook" and "message".`;
           quality_score: enriched.quality_score,
           score_factors: enriched.score_factors,
           enriched_at: enriched.enriched_at,
-          // Legacy fields (could potentially be dropped in a real refactor)
+          // Legacy fields
           score_total: enriched.quality_score,
           score_grade: enriched.quality_score >= 80 ? 'A' : (enriched.quality_score >= 65 ? 'B' : 'C'),
           ai_hook_draft: aiHook,

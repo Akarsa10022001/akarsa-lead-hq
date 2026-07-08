@@ -18,6 +18,7 @@ export interface NormalizedLead {
   review_count?: number;
   raw_data: any;
   source_name: string;
+  source_url?: string;
   evidence: ConnectorEvidence[];
 }
 

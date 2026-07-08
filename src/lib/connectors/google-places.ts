@@ -125,6 +125,7 @@ export class GooglePlacesConnector implements Connector {
       review_count: rawRecord.user_ratings_total,
       raw_data: rawRecord,
       source_name: this.name,
+      source_url: rawRecord.url || `https://www.google.com/maps/place/?q=place_id:${rawRecord.place_id}`,
       evidence: this.getEvidence(rawRecord)
     };
   }

@@ -154,6 +154,11 @@ export default function HitList({ leads: initialLeads, onUpdate }: { leads: any[
                     <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-widest ${getBadgeColor(lead.quality_score || 0)}`}>
                       Score {lead.quality_score || 0}
                     </span>
+                    {lead.agency_fit_score > 0 && (
+                      <span className="px-3 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-widest bg-purple-500/10 text-purple-500 border-purple-500/20">
+                        Fit {lead.agency_fit_score}
+                      </span>
+                    )}
                     {getTopFactors(lead.score_factors).map(factor => (
                       <span key={factor} className="px-3 py-0.5 rounded-full bg-secondary text-foreground text-[10px] capitalize font-medium border border-border">
                         {factor}
@@ -163,8 +168,10 @@ export default function HitList({ leads: initialLeads, onUpdate }: { leads: any[
                   
                   <div className="text-xs text-muted-foreground mb-3 flex items-center gap-3 truncate">
                     {lead.domain && <a href={`https://${lead.domain}`} target="_blank" className="hover:text-primary flex items-center gap-1"><ExternalLink className="w-3 h-3"/> {lead.domain}</a>}
-                    {lead.industry && <span>• {lead.industry}</span>}
+                    {lead.sub_type && <span>• {lead.sub_type}</span>}
+                    {(!lead.sub_type && lead.industry) && <span>• {lead.industry}</span>}
                     {lead.location && <span>• {lead.location}</span>}
+                    {lead.source_url && <a href={lead.source_url} target="_blank" className="hover:text-primary flex items-center gap-1 text-[10px] uppercase font-bold text-muted-foreground/60"><ExternalLink className="w-3 h-3"/> Source URL</a>}
                   </div>
 
                   {generationStatus[lead.id] && (
@@ -178,8 +185,25 @@ export default function HitList({ leads: initialLeads, onUpdate }: { leads: any[
 
                   {lead.ai_hook_draft && generationStatus[lead.id] !== 'generating' && (
                     <div className="p-3 bg-secondary/30 text-sm text-foreground/80 mb-3 border border-border/50 font-mono">
-                      {lead.ai_hook_draft}
+                      {lead.ai_hook_draft.split('\n').map((line: string, i: number) => <div key={i}>{line}</div>)}
                     </div>
+                  )}
+
+                  {lead.lead_signals && lead.lead_signals.length > 0 && (
+                    <details className="mb-3 border border-border/50 bg-secondary/10 group rounded-md">
+                      <summary className="p-2 text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-secondary/30 text-muted-foreground flex items-center gap-2">
+                        <span className="group-open:rotate-90 transition-transform">▶</span>
+                        Agency Signals & Evidence
+                      </summary>
+                      <div className="p-3 pt-0 border-t border-border/50 space-y-2 mt-2">
+                        {lead.lead_signals.map((signal: any, idx: number) => (
+                          <div key={idx} className="text-xs">
+                            <span className="font-bold text-primary mr-2 uppercase tracking-wide">[{signal.signal_type}]</span>
+                            <span className="text-muted-foreground">{signal.evidence_text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   )}
 
                   <div className="flex items-center gap-2">
