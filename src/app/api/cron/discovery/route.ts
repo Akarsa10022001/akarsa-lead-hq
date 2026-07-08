@@ -12,8 +12,10 @@ import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
 import { callLLM } from '@/lib/llm';
 import { enrichLead } from '@/lib/enrichment/scorer';
-import { extractAgencySignals } from '@/lib/enrichment/agency-extractor';
-import { INDUSTRY_MAP } from '@/lib/connectors/industries';
+import { extractAgencySignals, identifyDecisionMaker } from '@/lib/enrichment/agency-extractor';
+import { detectIntent } from '@/lib/enrichment/intent-detector';
+import { collectSocialIntel } from '@/lib/enrichment/social-intel';
+import { INDUSTRY_MAP, isAgencyCategory } from '@/lib/connectors/industries';
 import pLimit from 'p-limit';
 
 /**
@@ -475,7 +477,72 @@ export async function POST(req: Request) {
       }
 
       // ====================================================================
-      // ENRICHMENT & SCORING (New Quality Engine)
+      // LAYER 9: Intent Detection (SerpAPI + DuckDuckGo)
+      // ====================================================================
+      let intentResult = { signals: [] as any[], intent_score: 0, raw_snippets: [] as string[] };
+      try {
+        console.log(`[Discovery] Layer 9: Detecting intent for ${normalized.company_name}...`);
+        intentResult = await detectIntent(normalized.company_name, config.location);
+        for (const signal of intentResult.signals) {
+          allEvidence.push({
+            category: 'trigger',
+            signal_type: signal.signal_type,
+            evidence_text: signal.evidence_text
+          });
+        }
+        if (intentResult.signals.length > 0) {
+          console.log(`[Discovery]   ✓ Found ${intentResult.signals.length} intent signals`);
+        }
+      } catch (e) {
+        console.warn(`[Discovery]   ✗ Intent detection failed for ${normalized.company_name}`);
+      }
+
+      // ====================================================================
+      // LAYER 10: Social Intelligence (Instagram + Multi-platform)
+      // ====================================================================
+      let socialIntel = { profiles: [] as any[], social_score: 0, total_followers: 0 } as any;
+      try {
+        if (social_links) {
+          console.log(`[Discovery] Layer 10: Collecting social intelligence...`);
+          socialIntel = await collectSocialIntel(social_links, normalized.company_name);
+          
+          // Override contact info if social intel found better data
+          if (socialIntel.decision_maker_name && !normalized.contact_name) {
+            normalized.contact_name = socialIntel.decision_maker_name;
+          }
+          if (socialIntel.decision_maker_email && !discoveredEmail) {
+            discoveredEmail = socialIntel.decision_maker_email;
+            emailSource = 'social_bio';
+            allEvidence.push({
+              category: 'reachability',
+              signal_type: 'email_from_social',
+              evidence_text: `Email extracted from social bio: ${discoveredEmail}`
+            });
+          }
+          if (socialIntel.decision_maker_phone && !normalized.phone) {
+            normalized.phone = socialIntel.decision_maker_phone;
+            allEvidence.push({
+              category: 'reachability',
+              signal_type: 'phone_from_social',
+              evidence_text: `Phone extracted from social bio: ${socialIntel.decision_maker_phone}`
+            });
+          }
+          
+          for (const profile of socialIntel.profiles) {
+            allEvidence.push({
+              category: 'reachability',
+              signal_type: `social_${profile.platform}`,
+              evidence_text: `${profile.platform}: ${profile.url} | Followers: ${profile.followers || 'N/A'} | Active: ${profile.is_active}`
+            });
+          }
+          console.log(`[Discovery]   ✓ Found ${socialIntel.profiles.length} social profiles, ${socialIntel.total_followers} total followers`);
+        }
+      } catch (e) {
+        console.warn(`[Discovery]   ✗ Social intel failed for ${normalized.company_name}`);
+      }
+
+      // ====================================================================
+      // ENRICHMENT & SCORING (Palantir-Grade Composite Intelligence)
       // ====================================================================
       const enriched = await enrichLead({
         company_name: normalized.company_name,
@@ -491,8 +558,15 @@ export async function POST(req: Request) {
         has_website,
         rating: normalized.rating,
         review_count: normalized.review_count,
-        contact_name: normalized.contact_name, // If provided by connector
+        contact_name: normalized.contact_name,
         social_links,
+        // Layer 9 data
+        intent_score: intentResult.intent_score,
+        // Layer 10 data
+        social_profile_count: socialIntel.profiles.length,
+        total_followers: socialIntel.total_followers,
+        decision_maker_name: socialIntel.decision_maker_name,
+        // Layer 12 agency data
         ...(agency_signals || {})
       }, config.location);
 
@@ -505,27 +579,31 @@ export async function POST(req: Request) {
       pipelineLog.after_verification++;
 
       // ====================================================================
-      // AI Hook & Draft Generation
+      // LAYER 11: AI Decision-Maker Identification + Hook Generation
       // ====================================================================
-      let aiHook = 'One dashboard for all your clients';
+      let aiHook = '';
       let fullDraft = '';
+      let decisionMaker: any = {};
       try {
-        const evidenceStr = allEvidence.map(e => e.evidence_text).join('; ');
-        const prompt = `You are writing a cold outreach message to a Marketing Agency in ${config.location}: "${normalized.company_name}".
-Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard for agencies.
-Use ONLY these scraped facts to personalize the message: [${evidenceStr}].
-1. Write a hyper-personalized 2-5 word sales hook.
-2. Write a short, value-first opening message (max 3 sentences). Mention how Akarsa One provides one dashboard for all their clients' Instagram/YouTube analytics and automated monthly reports.
-Return valid JSON with keys "hook" and "message".`;
-        const llmResult = await callLLM({
-          task: 'Generate hook and draft message for agency lead.',
-          prompt,
-          preferredProvider: 'groq'
-        });
-        if (llmResult?.hook) aiHook = llmResult.hook;
-        if (llmResult?.message) fullDraft = llmResult.message;
+        console.log(`[Discovery] Layer 11: AI decision-maker analysis for ${normalized.company_name}...`);
+        decisionMaker = await identifyDecisionMaker(
+          normalized.company_name,
+          category,
+          config.location,
+          allEvidence,
+          socialIntel.profiles || [],
+          normalized.contact_name,
+          discoveredEmail || undefined,
+          normalized.phone || undefined
+        );
+        
+        if (decisionMaker.name) normalized.contact_name = decisionMaker.name;
+        aiHook = decisionMaker.outreach_angle || 'Digital growth opportunity';
+        fullDraft = decisionMaker.personalized_opener || '';
+        console.log(`[Discovery]   ✓ Decision-maker: ${decisionMaker.name || 'Unknown'} (${decisionMaker.role || 'N/A'}) | Channel: ${decisionMaker.best_channel} | Angle: ${aiHook}`);
       } catch (e) {
-        console.warn('[Discovery] LLM hook generation failed, using fallback.');
+        console.warn('[Discovery] Layer 11 failed, using fallback hook.');
+        aiHook = isAgencyCategory(category) ? 'Multi-client analytics dashboard' : 'Grow your online presence';
       }
 
       // ====================================================================

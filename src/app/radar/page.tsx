@@ -166,7 +166,7 @@ export default function Radar() {
                 <tr className="bg-secondary/50 border-b border-border">
                   <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Company</th>
                   <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Contact</th>
-                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Phone</th>
+                  <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Intel</th>
                   <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Industry</th>
                   <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">AI Hook</th>
                   <th className="p-4 text-xs font-bold text-muted-foreground uppercase tracking-widest font-heading">Status</th>
@@ -176,23 +176,40 @@ export default function Radar() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="p-4 text-center text-muted-foreground font-mono">Loading leads...</td>
+                    <td colSpan={7} className="p-4 text-center text-muted-foreground font-mono">Loading leads...</td>
                   </tr>
                 ) : filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-4 text-center text-muted-foreground font-mono">No leads found matching your filters.</td>
+                    <td colSpan={7} className="p-4 text-center text-muted-foreground font-mono">No leads found matching your filters.</td>
                   </tr>
-                ) : filteredLeads.map((lead, idx) => (
+                ) : filteredLeads.map((lead, idx) => {
+                  const grade = lead.intel_grade || (lead.quality_score >= 80 ? 'A' : lead.quality_score >= 60 ? 'B' : lead.quality_score >= 40 ? 'C' : 'D');
+                  const gradeColors: Record<string, string> = { A: 'bg-green-500/10 text-green-500 border-green-500/30', B: 'bg-blue-500/10 text-blue-500 border-blue-500/30', C: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30', D: 'bg-red-500/10 text-red-500 border-red-500/30' };
+                  
+                  return (
                   <motion.tr 
                     key={lead.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
+                    transition={{ delay: idx * 0.03 }}
                     className="border-b border-border/50 hover:bg-secondary/30 transition-colors group"
                   >
-                    <td className="p-4 font-bold font-heading uppercase tracking-wide">{lead.company_name}</td>
-                    <td className="p-4 text-muted-foreground">{lead.contact_name || 'N/A'}</td>
-                    <td className="p-4 text-muted-foreground font-mono text-sm">{lead.phone || 'N/A'}</td>
+                    <td className="p-4">
+                      <div className="font-bold font-heading uppercase tracking-wide">{lead.company_name}</div>
+                      {lead.location && <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[200px]">{lead.location}</div>}
+                    </td>
+                    <td className="p-4">
+                      <div className="text-sm font-medium">{lead.contact_name || 'N/A'}</div>
+                      <div className="text-[10px] text-muted-foreground font-mono">{lead.phone || lead.email || 'No contact'}</div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`w-8 h-8 flex items-center justify-center text-sm font-black border rounded-lg ${gradeColors[grade] || gradeColors.D}`}>
+                          {grade}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground font-mono">{lead.quality_score || 0}/100</span>
+                      </div>
+                    </td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 bg-background text-foreground text-[10px] font-medium border border-border uppercase tracking-widest">
                         {lead.industry}
@@ -261,7 +278,8 @@ export default function Radar() {
                       </Link>
                     </td>
                   </motion.tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -6,19 +6,20 @@ export function inferRegionFromLocation(location: string): CountryCode | undefin
   if (!location) return undefined;
   const loc = location.toLowerCase();
   
-  if (loc.includes('india') || loc.includes('delhi') || loc.includes('mumbai') || loc.includes('bangalore')) return 'IN';
+  if (loc.includes('india') || loc.includes('delhi') || loc.includes('mumbai') || loc.includes('bangalore') || loc.includes('indore')) return 'IN';
   if (loc.includes('uae') || loc.includes('dubai') || loc.includes('abu dhabi')) return 'AE';
   if (loc.includes('uk') || loc.includes('united kingdom') || loc.includes('london')) return 'GB';
-  if (loc.includes('us') || loc.includes('usa') || loc.includes('united states') || loc.includes('new york')) return 'US';
+  if (loc.includes('us') || loc.includes('usa') || loc.includes('united states') || loc.includes('new york') || loc.includes('austin')) return 'US';
   if (loc.includes('singapore')) return 'SG';
+  if (loc.includes('australia') || loc.includes('sydney') || loc.includes('melbourne')) return 'AU';
+  if (loc.includes('canada') || loc.includes('toronto') || loc.includes('vancouver')) return 'CA';
   
-  return undefined; // Add more as needed, but if it's ambiguous, don't guess.
+  return undefined;
 }
 
 export function normalizePhone(rawPhone: string | null | undefined, locationHint: string): string | null {
   if (!rawPhone) return null;
   
-  // Clean basic noise like (0) or weird spaces but leave + intact
   const cleaned = rawPhone.replace(/[^\d+]/g, '');
   if (!cleaned) return null;
 
@@ -54,82 +55,237 @@ export function classifyEmailQuality(email: string | null | undefined): string {
   const localPart = email.split('@')[0].toLowerCase();
   const catchalls = ['info', 'contact', 'sales', 'support', 'hello', 'admin', 'help', 'team'];
   if (catchalls.includes(localPart)) return 'role';
-  return 'named'; // Could be improved to catch obvious catch-all domains, but named is default for real-looking names
+  return 'named';
 }
 
-export function calculateQualityScore(lead: any) {
-  let contact_score = 0;
-  let fit_score = 0;
-  let factors: any = {};
+/**
+ * ============================================================
+ * COMPOSITE LEAD INTELLIGENCE SCORE — Palantir-Grade
+ * ============================================================
+ * 4 dimensions, each scored 0-25, for a total of 0-100:
+ * 
+ * 1. CONTACT (25 pts)   — Can we reach them?
+ * 2. DIGITAL (25 pts)   — How mature is their online presence?
+ * 3. INTENT (25 pts)    — Are they showing buying signals?
+ * 4. FIT (25 pts)       — Do they match our ideal customer profile?
+ */
 
-  // --- Contactability ---
+export interface IntelScore {
+  total: number;         // 0-100
+  grade: 'A' | 'B' | 'C' | 'D';
+  contact_score: number; // 0-25
+  digital_score: number; // 0-25
+  intent_score: number;  // 0-25
+  fit_score: number;     // 0-25
+  factors: Record<string, number>;
+  grade_color: string;   // For UI rendering
+}
+
+export function calculateIntelScore(lead: any): IntelScore {
+  let contact = 0;
+  let digital = 0;
+  let intent = 0;
+  let fit = 0;
+  const factors: Record<string, number> = {};
+
+  // ========================================
+  // DIMENSION 1: CONTACT (Can we reach them?)
+  // ========================================
   if (lead.email_verified) {
-    contact_score += 40;
-    factors.verified_email = 40;
+    contact += 10;
+    factors.verified_email = 10;
   }
   
   if (lead.email_quality === 'named') {
-    contact_score += 20;
-    factors.named_email = 20;
+    contact += 5;
+    factors.named_email = 5;
   } else if (lead.email_quality === 'role') {
-    contact_score += 10;
-    factors.role_email = 10;
+    contact += 2;
+    factors.role_email = 2;
   }
 
   if (lead.phone_e164) {
-    contact_score += 40;
-    factors.phone = 40;
+    contact += 10;
+    factors.phone_e164 = 10;
+  } else if (lead.phone) {
+    contact += 3;
+    factors.phone_raw = 3;
   }
 
   if (lead.contact_name) {
-    contact_score += 20;
-    factors.contact_name = 20;
+    contact += 5;
+    factors.contact_name = 5;
   }
 
-  // --- Agency Fit (Akarsa One) ---
-  // These signals are passed in if extracted by the LLM
+  // Decision-maker from social intel
+  if (lead.decision_maker_name) {
+    contact += 3;
+    factors.decision_maker = 3;
+  }
+
+  // ========================================
+  // DIMENSION 2: DIGITAL MATURITY
+  // ========================================
+  if (lead.has_website) {
+    digital += 5;
+    factors.has_website = 5;
+  }
+
+  if (lead.website_status === 'live') {
+    digital += 3;
+    factors.website_live = 3;
+  }
+
+  // Social media presence
+  const socialProfileCount = lead.social_profile_count || 0;
+  if (socialProfileCount >= 1) {
+    digital += 5;
+    factors.has_social = 5;
+  }
+  if (socialProfileCount >= 3) {
+    digital += 3;
+    factors.multi_social = 3;
+  }
+
+  // Follower count
+  const followers = lead.total_followers || 0;
+  if (followers >= 1000) {
+    digital += 4;
+    factors.followers_1k = 4;
+  } else if (followers >= 10000) {
+    digital += 7;
+    factors.followers_10k = 7;
+  }
+
+  // Domain age
+  if (lead.domain_age_years) {
+    if (lead.domain_age_years >= 3) {
+      digital += 5;
+      factors.established_domain = 5;
+    } else if (lead.domain_age_years >= 1) {
+      digital += 2;
+      factors.newer_domain = 2;
+    }
+  }
+
+  // Running paid ads
+  if (lead.has_active_ads) {
+    digital += 5;
+    factors.active_ads = 5;
+  }
+
+  // ========================================
+  // DIMENSION 3: INTENT (Buying signals)
+  // ========================================
+  // Intent score is calculated by the Intent Detector (Layer 9) and passed in directly
+  intent = lead.intent_score || 0;
+  if (intent > 0) factors.intent_signals = intent;
+
+  // Additional intent from review analysis
+  if (lead.rating && lead.rating < 3.5 && lead.review_count > 10) {
+    intent += 5;
+    factors.low_rating_intent = 5;
+  }
+
+  // No website but has social = needs web services
+  if (!lead.has_website && socialProfileCount > 0) {
+    intent += 5;
+    factors.needs_website = 5;
+  }
+
+  // ========================================
+  // DIMENSION 4: FIT (ICP match)
+  // ========================================
+  // Agency-specific fit (for Akarsa One)
   if (lead.manages_multiple_clients) {
-    fit_score += 40;
-    factors.multi_client = 40;
+    fit += 15;
+    factors.multi_client = 15;
   }
   
-  if (lead.platforms_managed && lead.platforms_managed.length > 5) {
-    fit_score += 20;
-    factors.multi_platform = 20;
+  if (lead.platforms_managed) {
+    const platformCount = lead.platforms_managed.split(',').length;
+    if (platformCount >= 3) {
+      fit += 5;
+      factors.multi_platform = 5;
+    }
   }
   
   if (lead.reporting_analytics_offering) {
-    fit_score += 30;
-    factors.offers_reporting = 30;
+    fit += 10;
+    factors.offers_reporting = 10;
   }
   
   if (lead.team_size_or_client_count) {
-    fit_score += 10;
-    factors.team_size_stated = 10;
+    fit += 5;
+    factors.team_size_stated = 5;
   }
 
-  if (lead.email_quality === 'none' && !lead.phone_e164) {
-    contact_score = 0;
-    fit_score = 0;
-    factors.uncontactable = -100;
+  // General business fit (for Akarsa Studio)
+  if (lead.rating && lead.rating >= 4.0) {
+    fit += 3;
+    factors.good_reputation = 3;
   }
 
-  // Normalize Contact to 50 max, Fit to 50 max
-  const norm_contact = Math.min(contact_score, 50);
-  const norm_fit = Math.min(fit_score, 50);
-  const total = norm_contact + norm_fit;
+  if (lead.review_count && lead.review_count >= 50) {
+    fit += 3;
+    factors.established_business = 3;
+  }
+
+  // ========================================
+  // NORMALIZE & GRADE
+  // ========================================
+  const norm_contact = Math.min(contact, 25);
+  const norm_digital = Math.min(digital, 25);
+  const norm_intent = Math.min(intent, 25);
+  const norm_fit = Math.min(fit, 25);
+  const total = norm_contact + norm_digital + norm_intent + norm_fit;
+
+  const grade = total >= 80 ? 'A' : total >= 60 ? 'B' : total >= 40 ? 'C' : 'D';
+  const gradeColors: Record<string, string> = {
+    'A': '#22c55e', // green
+    'B': '#3b82f6', // blue
+    'C': '#eab308', // yellow
+    'D': '#ef4444'  // red
+  };
+
+  // BOUNCER: If completely uncontactable, override to 0
+  if (lead.email_quality === 'none' && !lead.phone_e164 && !lead.phone && !lead.has_website) {
+    return {
+      total: 0,
+      grade: 'D',
+      contact_score: 0,
+      digital_score: 0,
+      intent_score: 0,
+      fit_score: 0,
+      factors: { uncontactable: -100 },
+      grade_color: gradeColors['D']
+    };
+  }
 
   return {
-    score: total,
+    total,
+    grade,
     contact_score: norm_contact,
+    digital_score: norm_digital,
+    intent_score: norm_intent,
     fit_score: norm_fit,
-    factors: factors
+    factors,
+    grade_color: gradeColors[grade]
+  };
+}
+
+// Legacy wrapper for backward compatibility
+export function calculateQualityScore(lead: any) {
+  const intel = calculateIntelScore(lead);
+  return {
+    score: intel.total,
+    contact_score: intel.contact_score,
+    fit_score: intel.fit_score,
+    factors: intel.factors
   };
 }
 
 export async function enrichLead(rawLead: any, locationHint: string) {
-  // We expect rawLead to have: email, phone, website_status, has_website, rating, review_count, contact_name, etc.
-  
   const enriched = { ...rawLead };
 
   if (enriched.email) {
@@ -144,12 +300,16 @@ export async function enrichLead(rawLead: any, locationHint: string) {
     enriched.phone_e164 = normalizePhone(enriched.phone, locationHint);
   }
 
-  const { score, contact_score, fit_score, factors } = calculateQualityScore(enriched);
+  const intel = calculateIntelScore(enriched);
   
-  enriched.quality_score = score;
-  enriched.contactability_score = contact_score;
-  enriched.agency_fit_score = fit_score;
-  enriched.score_factors = factors;
+  enriched.quality_score = intel.total;
+  enriched.intel_grade = intel.grade;
+  enriched.intel_grade_color = intel.grade_color;
+  enriched.contactability_score = intel.contact_score;
+  enriched.digital_maturity_score = intel.digital_score;
+  enriched.intent_score = intel.intent_score;
+  enriched.agency_fit_score = intel.fit_score;
+  enriched.score_factors = intel.factors;
   enriched.enriched_at = new Date().toISOString();
 
   return enriched;
