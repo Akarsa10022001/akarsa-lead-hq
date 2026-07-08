@@ -267,9 +267,9 @@ export default function Home() {
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="w-full h-[250px] flex items-center justify-center border-2 border-dashed border-border rounded-xl bg-muted/20">
+              <div className="w-full h-[250px] flex items-center justify-center border-2 border-dashed border-border rounded-none bg-muted/20">
                 <div className="text-center max-w-sm px-6">
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-none flex items-center justify-center mx-auto mb-4">
                     <Loader2 className="w-6 h-6 text-primary animate-spin" />
                   </div>
                   <h4 className="text-foreground font-semibold mb-2">Analyzing Pipeline Data</h4>
@@ -277,7 +277,7 @@ export default function Home() {
                     Keep scanning for leads and recording activity. The ARIMA model requires a baseline of historical data to predict pipeline volume accurately.
                   </p>
                   <div className="flex items-center justify-center gap-4 mt-6">
-                    <div className="w-48 h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className="w-48 h-2 bg-secondary rounded-none overflow-hidden">
                       <div 
                         className="h-full bg-primary"
                         style={{ width: `${Math.min(100, (forecastState.historyDays / 7) * 100)}%` }}
@@ -300,7 +300,7 @@ export default function Home() {
             <div className="p-6 bg-surface-elevated border border-border flex flex-col justify-between">
               <div>
                 <h3 className="text-lg font-bold font-heading uppercase tracking-wide mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                  <span className="w-2 h-2 rounded-none bg-accent animate-pulse"></span>
                   AI Agent Status
                 </h3>
                 <div className="p-4 bg-background border border-border mb-4">
@@ -369,7 +369,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-2xl border flex items-start gap-3 w-80 ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}
+            className={`fixed bottom-6 right-6 z-50 p-4 rounded-none shadow-none border flex items-start gap-3 w-80 ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}
           >
             {toast.type === 'error' ? <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" /> : <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />}
             <div className="flex-1">

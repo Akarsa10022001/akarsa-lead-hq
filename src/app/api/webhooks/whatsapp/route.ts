@@ -66,7 +66,24 @@ export async function POST(req: Request) {
                   sequence = newSeq;
                 }
 
-                // 3. Log the incoming message
+                // 3. Classify incoming message
+                let classification = 'unclear';
+                try {
+                  const { callLLM } = require('@/lib/llm');
+                  const prompt = `Classify this incoming reply from a lead. Options: human_interested, human_not_interested, auto_reply_bot, unclear. Reply: "${textContent}". Return JSON with key "classification".`;
+                  const llmResult = await callLLM({
+                    task: 'Classify reply',
+                    prompt,
+                    preferredProvider: 'groq'
+                  });
+                  if (llmResult?.classification) {
+                    classification = llmResult.classification;
+                  }
+                } catch (e) {
+                  console.warn('Webhook classification failed', e);
+                }
+
+                // 4. Log the incoming message
                 if (sequence) {
                   await supabase
                     .from('outreach_messages')
@@ -76,14 +93,17 @@ export async function POST(req: Request) {
                       channel: 'whatsapp',
                       draft_content: textContent,
                       sent_at: new Date().toISOString(),
-                      status: 'received'
+                      status: 'received',
+                      classification: classification
                     });
                     
-                  // Update lead status to Engaged
-                  await supabase
-                    .from('leads')
-                    .update({ status: 'Engaged' })
-                    .eq('id', leadId);
+                  // Update lead status if interested
+                  if (classification === 'human_interested') {
+                    await supabase
+                      .from('leads')
+                      .update({ status: 'Engaged' })
+                      .eq('id', leadId);
+                  }
                 }
               }
             }

@@ -147,7 +147,7 @@ export default function Radar() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className="absolute right-0 mt-2 w-48 bg-card border border-border shadow-xl z-50 overflow-hidden"
+                      className="absolute right-0 mt-2 w-48 bg-card border border-border shadow-none z-50 overflow-hidden"
                     >
                       <button onClick={() => { setStatusFilter(null); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest">All Statuses</button>
                       <button onClick={() => { setStatusFilter('New'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-primary font-medium font-mono uppercase tracking-widest">New</button>

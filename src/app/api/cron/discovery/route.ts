@@ -43,6 +43,12 @@ const DEFAULT_CONFIG: DiscoveryConfig = {
 
 export async function POST(req: Request) {
   const startTime = Date.now();
+
+  // CRON_SECRET Protection
+  const authHeader = req.headers.get('Authorization');
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   
   // Debug log counts
   const pipelineLog = {
@@ -245,6 +251,14 @@ export async function POST(req: Request) {
 
       if (existingLead) {
         stats.skipped_duplicate++;
+        return;
+      }
+
+      // Chain Exclusion
+      const CHAIN_KEYWORDS = ['mcdonald', 'starbucks', 'subway', 'burger king', 'kfc', 'domino', 'pizza hut', 'wendy', 'taco bell'];
+      const isChain = CHAIN_KEYWORDS.some(k => normalized.company_name.toLowerCase().includes(k));
+      if (isChain) {
+        console.log(`[Discovery] Skipping chain: ${normalized.company_name}`);
         return;
       }
       
@@ -472,18 +486,23 @@ export async function POST(req: Request) {
       pipelineLog.after_verification++;
 
       // ====================================================================
-      // AI Hook Generation
+      // AI Hook & Draft Generation
       // ====================================================================
       let aiHook = 'Business needs digital growth support';
+      let fullDraft = '';
       try {
         const hasWebsite = !!normalized.domain;
-        const prompt = `Based on this business in ${config.location}: "${normalized.company_name}" (Industry: ${normalized.industry}). ${hasWebsite ? 'They have a website.' : 'They have NO website - this is a huge opportunity.'} Write a hyper-personalized 2-5 word sales hook. DO NOT use generic phrases like "Boost Local Visibility" or "Increase Sales". Instead, reference their specific name, industry, or offline dominance. Return valid JSON with key "hook".`;
+        const prompt = `Based on this business in ${config.location}: "${normalized.company_name}" (Industry: ${normalized.industry}). ${hasWebsite ? 'They have a website.' : 'They have NO website - this is a huge opportunity.'} 
+1. Write a hyper-personalized 2-5 word sales hook.
+2. Write a short, value-first opening message (max 3 sentences). Include a specific insight or mini-audit about their digital presence (e.g., if no website, mention they are invisible for local searches). DO NOT use generic phrases like "Boost Local Visibility".
+Return valid JSON with keys "hook" and "message".`;
         const llmResult = await callLLM({
-          task: 'Generate short hook for lead.',
+          task: 'Generate hook and draft message for lead.',
           prompt,
           preferredProvider: 'groq'
         });
         if (llmResult?.hook) aiHook = llmResult.hook;
+        if (llmResult?.message) fullDraft = llmResult.message;
       } catch (e) {
         console.warn('[Discovery] LLM hook generation failed, using fallback.');
       }
@@ -529,6 +548,29 @@ export async function POST(req: Request) {
       }
       
       pipelineLog.inserted_to_db++;
+
+      // ====================================================================
+      // Autonomous Queueing (Phase 2B)
+      // ====================================================================
+      if (enriched.quality_score >= 50 && fullDraft) {
+        const { data: sequence } = await supabase
+          .from('outreach_sequences')
+          .insert({ lead_id: lead.id, status: 'active' })
+          .select()
+          .single();
+          
+        if (sequence) {
+          const channel = enriched.phone_e164 ? 'whatsapp' : 'email';
+          await supabase.from('outreach_messages').insert({
+            sequence_id: sequence.id,
+            step_number: 1,
+            channel: channel,
+            draft_content: fullDraft,
+            status: 'ready_to_send'
+          });
+          console.log(`[Discovery] + Queued for outreach via ${channel}`);
+        }
+      }
 
       // Insert evidence/signals
       for (const ev of allEvidence) {

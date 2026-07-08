@@ -101,7 +101,7 @@ export default function HitList({ leads: initialLeads, onUpdate }: { leads: any[
     <div className="w-full">
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-border/50">
         <h3 className="text-xl font-bold font-heading uppercase tracking-wide flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+          <span className="w-2 h-2 rounded-none bg-accent animate-pulse"></span>
           Today's Hit List
         </h3>
         {selectedIds.size > 0 && (
@@ -151,11 +151,11 @@ export default function HitList({ leads: initialLeads, onUpdate }: { leads: any[
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <h4 className="font-bold text-lg font-heading tracking-wide uppercase truncate">{lead.company_name}</h4>
-                    <span className={`px-3 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-widest ${getBadgeColor(lead.quality_score || 0)}`}>
+                    <span className={`px-3 py-0.5 rounded-none text-[10px] font-bold border uppercase tracking-widest ${getBadgeColor(lead.quality_score || 0)}`}>
                       Score {lead.quality_score || 0}
                     </span>
                     {getTopFactors(lead.score_factors).map(factor => (
-                      <span key={factor} className="px-3 py-0.5 rounded-full bg-secondary text-foreground text-[10px] capitalize font-medium border border-border">
+                      <span key={factor} className="px-3 py-0.5 rounded-none bg-secondary text-foreground text-[10px] capitalize font-medium border border-border">
                         {factor}
                       </span>
                     ))}
