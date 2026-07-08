@@ -71,12 +71,12 @@ export async function POST(req: Request) {
         }
 
         // Draft next touch
-        const lead = seq.leads;
+        const lead: any = Array.isArray(seq.leads) ? seq.leads[0] : seq.leads;
         let prompt = '';
-        if (nextStep === 2) prompt = `Write a short follow-up to this business: ${lead.company_name}. Provide a small case study or value metric. Max 2 sentences.`;
-        if (nextStep === 3) prompt = `Write a short 3rd touch to ${lead.company_name} asking if they saw the previous note. Soft nudge. Max 2 sentences.`;
-        if (nextStep === 4) prompt = `Write a short 4th touch to ${lead.company_name} about their digital presence. Max 2 sentences.`;
-        if (nextStep === 5) prompt = `Write a professional break-up email to ${lead.company_name}. You won't bother them again, but leave the door open. Max 2 sentences.`;
+        if (nextStep === 2) prompt = `Write a short follow-up to this business: ${lead?.company_name || 'them'}. Provide a small case study or value metric. Max 2 sentences.`;
+        if (nextStep === 3) prompt = `Write a short 3rd touch to ${lead?.company_name || 'them'} asking if they saw the previous note. Soft nudge. Max 2 sentences.`;
+        if (nextStep === 4) prompt = `Write a short 4th touch to ${lead?.company_name || 'them'} about their digital presence. Max 2 sentences.`;
+        if (nextStep === 5) prompt = `Write a professional break-up email to ${lead?.company_name || 'them'}. You won't bother them again, but leave the door open. Max 2 sentences.`;
 
         try {
           const llmResult = await callLLM({
