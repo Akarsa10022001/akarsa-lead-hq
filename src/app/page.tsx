@@ -102,8 +102,8 @@ export default function Home() {
       .limit(15);
     
     if (hitData) {
-      // Attempt to fetch signals separately so it doesn't crash the main query if table is missing
-      const { data: signals } = await supabase.from('lead_signals').select('*').in('lead_id', hitData.map(l => l.id)).catch(() => ({ data: null }));
+      // Attempt to fetch signals separately. If table is missing, Supabase returns error and data is null.
+      const { data: signals } = await supabase.from('lead_signals').select('*').in('lead_id', hitData.map(l => l.id));
       
       const leadsWithSignals = hitData.map(lead => ({
         ...lead,

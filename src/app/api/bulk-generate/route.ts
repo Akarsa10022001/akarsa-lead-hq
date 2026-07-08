@@ -14,8 +14,8 @@ export async function POST(req: Request) {
     const { data: lead, error } = await supabase.from('leads').select('*').eq('id', leadId).single();
     if (error || !lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    // Fetch signals safely
-    const { data: signalsData } = await supabase.from('lead_signals').select('*').eq('lead_id', leadId).catch(() => ({ data: null }));
+    // Fetch signals safely (Supabase returns error object instead of throwing)
+    const { data: signalsData } = await supabase.from('lead_signals').select('*').eq('lead_id', leadId);
     lead.lead_signals = signalsData || [];
 
     const signals = lead.lead_signals?.map((s: any) => s.evidence_text).join('; ') || 'No specific signals found.';
