@@ -19,8 +19,8 @@ export const INDUSTRY_MAP: IndustryMapping[] = [
   { label: 'Digital Marketing Agency', googleType: 'advertising_agency', foursquareId: '11002' },
   { label: 'Social Media Agency', googleType: 'advertising_agency', foursquareId: '11002' },
   { label: 'Advertising Agency', googleType: 'advertising_agency', foursquareId: '11002' },
-  { label: 'Branding Studio', googleType: 'graphic_designer', foursquareId: '11002' },
-  { label: 'PR Firm', googleType: 'public_relations_firm', foursquareId: '11002' },
+  { label: 'Branding Studio', googleType: 'advertising_agency', foursquareId: '11002' },
+  { label: 'PR Firm', googleType: 'advertising_agency', foursquareId: '11002' },
   { label: 'Marketing Consultant', googleType: 'advertising_agency', foursquareId: '11002' },
 ];
 
