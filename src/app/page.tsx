@@ -92,16 +92,15 @@ export default function Home() {
       console.error("Failed to fetch forecast", e);
     }
 
-    // 5. Fetch Hit List (Safe fetch to prevent crashing if lead_signals is missing)
+    // 5. Fetch Hit List — show recent New leads regardless of quality_score
     const { data: hitData } = await supabase
       .from('leads')
       .select('*')
       .eq('status', 'New')
-      .gt('quality_score', 0)
-      .order('quality_score', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
       .limit(15);
     
-    if (hitData) {
+    if (hitData && hitData.length > 0) {
       // Attempt to fetch signals separately. If table is missing, Supabase returns error and data is null.
       const { data: signals } = await supabase.from('lead_signals').select('*').in('lead_id', hitData.map(l => l.id));
       

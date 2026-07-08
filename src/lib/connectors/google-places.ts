@@ -1,9 +1,11 @@
 import { Connector, ConnectorEvidence, NormalizedLead } from './types';
-import { getGoogleType } from './industries';
+import { getGoogleType, getTextSearchQuery, isAgencyCategory } from './industries';
 
 /**
  * Google Places API Connector (New)
  * Uses the Google Places API to find real businesses with phone numbers, websites, and ratings.
+ * For agency categories, uses Text Search API (keyword-based) for much better accuracy.
+ * For general categories, uses Nearby Search API (type-based).
  * Free tier: 5,000 requests/month under "Pro" SKU.
  * Requires GOOGLE_PLACES_API_KEY environment variable.
  */
@@ -18,32 +20,49 @@ export class GooglePlacesConnector implements Connector {
     }
 
     const mappedType = getGoogleType(query.type);
+    const textSearchKeyword = getTextSearchQuery(query.type);
 
-    // Step 1 & 2: Geocode and Nearby Search
     let results: any[] = [];
     let next_page_token: string | undefined;
 
     if (query.pageToken) {
+      // Pagination works the same for both Text Search and Nearby Search
       console.log(`[GooglePlaces] Using pageToken: ${query.pageToken}`);
-      const nearbyUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${query.pageToken}&key=${apiKey}`;
-      const nearbyRes = await fetch(nearbyUrl);
-      const nearbyData = await nearbyRes.json();
+      const paginationUrl = `https://maps.googleapis.com/maps/api/place/${textSearchKeyword ? 'textsearch' : 'nearbysearch'}/json?pagetoken=${query.pageToken}&key=${apiKey}`;
+      const paginationRes = await fetch(paginationUrl);
+      const paginationData = await paginationRes.json();
       
-      // If INVALID_REQUEST, it means the token is not active yet (Google delay). We should retry after 2s.
-      if (nearbyData.status === 'INVALID_REQUEST') {
+      if (paginationData.status === 'INVALID_REQUEST') {
         console.log(`[GooglePlaces] Token not ready, waiting 2s...`);
         await new Promise(r => setTimeout(r, 2000));
-        const retryRes = await fetch(nearbyUrl);
+        const retryRes = await fetch(paginationUrl);
         const retryData = await retryRes.json();
         if (retryData.status === 'OK') {
           results = retryData.results || [];
           next_page_token = retryData.next_page_token;
         }
-      } else if (nearbyData.status === 'OK') {
-        results = nearbyData.results || [];
-        next_page_token = nearbyData.next_page_token;
+      } else if (paginationData.status === 'OK') {
+        results = paginationData.results || [];
+        next_page_token = paginationData.next_page_token;
+      }
+    } else if (textSearchKeyword) {
+      // === AGENCY CATEGORIES: Use Text Search API (keyword-based, much more accurate) ===
+      const textQuery = `${textSearchKeyword} in ${query.location}`;
+      const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(textQuery)}&key=${apiKey}`;
+      console.log(`[GooglePlaces] Text Search for agencies: "${textQuery}"`);
+      
+      const textRes = await fetch(textSearchUrl);
+      const textData = await textRes.json();
+
+      if (textData.status === 'OK') {
+        results = textData.results || [];
+        next_page_token = textData.next_page_token;
+        console.log(`[GooglePlaces] Text Search found ${results.length} results`);
+      } else {
+        console.warn(`[GooglePlaces] Text Search status: ${textData.status}`);
       }
     } else {
+      // === GENERAL CATEGORIES: Use Nearby Search API (type-based) ===
       const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query.location)}&key=${apiKey}`;
       const geoRes = await fetch(geocodeUrl);
       const geoData = await geoRes.json();

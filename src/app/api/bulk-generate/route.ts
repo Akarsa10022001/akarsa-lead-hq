@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { callLLM } from '@/lib/llm';
+import { isAgencyCategory } from '@/lib/connectors/industries';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+const AGENCY_LABELS = [
+  'Digital Marketing Agency', 'Social Media Agency', 'Advertising Agency',
+  'Branding Studio', 'PR Firm', 'Marketing Consultant', 'SEO Agency', 'Web Design Agency',
+  'advertising_agency', 'marketing'
+];
+
+function isAgencyLead(lead: any): boolean {
+  // Check industry field against known agency labels
+  const industry = (lead.industry || '').toLowerCase();
+  return AGENCY_LABELS.some(a => industry.includes(a.toLowerCase())) || isAgencyCategory(lead.industry || '');
+}
 
 export async function POST(req: Request) {
   try {
@@ -19,14 +32,29 @@ export async function POST(req: Request) {
     lead.lead_signals = signalsData || [];
 
     const signals = lead.lead_signals?.map((s: any) => s.evidence_text).join('; ') || 'No specific signals found.';
+    const agency = isAgencyLead(lead);
 
-    const prompt = `You are writing a cold outreach message to a B2B company: "${lead.company_name}".
-Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard.
+    let prompt: string;
+
+    if (agency) {
+      // === AKARSA ONE PITCH (for marketing agencies) ===
+      prompt = `You are writing a cold outreach message to a marketing agency: "${lead.company_name}" (${lead.industry}).
+Your goal is to pitch "Akarsa One" — a multi-client analytics and reporting dashboard built for agencies.
 Use ONLY these scraped facts to personalize the message: [${signals}].
 If there are no facts provided, invent a highly unique, engaging question related to their company name or location to start the message. DO NOT use the exact same hook twice.
 If the facts show they manage social media for multiple clients, mention how Akarsa One provides one dashboard for all their clients' Instagram/YouTube analytics and automated monthly reports.
 Write a casual, 2-sentence English version and a Hinglish version.
 Return valid JSON with keys "english" and "hinglish".`;
+    } else {
+      // === AKARSA STUDIO PITCH (for general businesses) ===
+      prompt = `Write a short, highly personalized B2B outreach message (under 50 words) to "${lead.company_name}" (Industry: ${lead.industry}, Location: ${lead.location || 'N/A'}).
+You are pitching web development, social media management, and digital marketing services from "Akarsa Studio".
+Use this angle: ${lead.ai_hook_draft || 'Your business deserves a stronger online presence'}.
+Use these facts if available: [${signals}].
+Be casual, specific to their business. DO NOT include subject lines or placeholders. DO NOT repeat the same message for different businesses.
+Make the message unique by referencing the company name, their industry, or their location.`;
+    }
+
     // 8s abort controller
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
