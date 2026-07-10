@@ -72,19 +72,21 @@ export default function ActivityLog() {
   }, []);
 
   const getStatusIcon = (status: string) => {
-    switch(status) {
+    const s = (status || '').toLowerCase();
+    switch(s) {
       case 'sent': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case 'failed': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      case 'pending': case 'Ready_to_send': return <Clock className="w-4 h-4 text-yellow-500" />;
+      case 'pending': case 'ready_to_send': return <Clock className="w-4 h-4 text-yellow-500" />;
       default: return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     }
   };
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    const s = (status || '').toLowerCase();
+    switch(s) {
       case 'sent': return 'text-green-500';
       case 'failed': return 'text-red-500';
-      case 'pending': case 'Ready_to_send': return 'text-yellow-500';
+      case 'pending': case 'ready_to_send': return 'text-yellow-500';
       default: return 'text-muted-foreground';
     }
   };
@@ -190,8 +192,8 @@ export default function ActivityLog() {
                     </tr>
                   ) : (
                     messages.map((msg, idx) => {
-                      const isReady = msg.status === 'Ready_to_send' || msg.status === 'pending';
-                      const isSent = msg.status === 'sent';
+                      const isReady = (msg.status || '').toLowerCase() === 'ready_to_send' || (msg.status || '').toLowerCase() === 'pending';
+                      const isSent = (msg.status || '').toLowerCase() === 'sent';
                       const phone = msg.outreach_sequences?.leads?.phone;
                       const email = msg.outreach_sequences?.leads?.email;
                       const canSend = isReady && (msg.channel === 'whatsapp' ? !!phone : !!email);
@@ -221,7 +223,7 @@ export default function ActivityLog() {
                           </td>
                           <td className="p-4">
                             <span className={`flex items-center gap-1.5 text-sm font-medium ${getStatusColor(msg.status)}`}>
-                              {getStatusIcon(msg.status)} {msg.status === 'Ready_to_send' ? 'Ready' : msg.status}
+                              {getStatusIcon(msg.status)} {(msg.status || '').toLowerCase() === 'ready_to_send' ? 'Ready' : msg.status}
                             </span>
                           </td>
                           <td className="p-4 text-sm text-muted-foreground truncate max-w-xs hidden md:table-cell">

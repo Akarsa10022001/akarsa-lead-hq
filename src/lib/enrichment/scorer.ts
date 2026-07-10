@@ -149,12 +149,12 @@ export function calculateIntelScore(lead: any): IntelScore {
 
   // Follower count
   const followers = lead.total_followers || 0;
-  if (followers >= 1000) {
-    digital += 4;
-    factors.followers_1k = 4;
-  } else if (followers >= 10000) {
+  if (followers >= 10000) {
     digital += 7;
     factors.followers_10k = 7;
+  } else if (followers >= 1000) {
+    digital += 4;
+    factors.followers_1k = 4;
   }
 
   // Domain age
