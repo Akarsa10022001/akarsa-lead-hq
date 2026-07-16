@@ -47,6 +47,15 @@ export async function PATCH(req: Request) {
 
     if (error) throw error;
 
+    // Enrollment Gate: If this was step 1 and it was approved, flip the sequence to 'active'
+    if (status === 'approved' && queueItem.step_number === 1) {
+      await supabase
+        .from('target_sequences')
+        .update({ status: 'active' })
+        .eq('target_id', queueItem.target_id)
+        .eq('status', 'pending_enrollment');
+    }
+
     // If step is skipped, advance sequence step
     if (status === 'skipped') {
       await supabase
@@ -83,16 +92,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing array of ids' }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { data: approvedItems, error } = await supabase
       .from('touch_queue')
       .update({
         status: 'approved',
         approved_at: new Date().toISOString(),
         approved_by: approved_by || 'system_operator'
       })
-      .in('id', ids);
+      .in('id', ids)
+      .select('target_id, step_number');
 
     if (error) throw error;
+
+    // Enrollment Gate: Flip any step 1s to active
+    if (approvedItems && approvedItems.length > 0) {
+      const step1TargetIds = approvedItems.filter(item => item.step_number === 1).map(item => item.target_id);
+      
+      if (step1TargetIds.length > 0) {
+        await supabase
+          .from('target_sequences')
+          .update({ status: 'active' })
+          .in('target_id', step1TargetIds)
+          .eq('status', 'pending_enrollment');
+      }
+    }
 
     return NextResponse.json({ success: true, message: `Successfully approved ${ids.length} items.` });
   } catch (error: any) {

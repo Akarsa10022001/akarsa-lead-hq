@@ -24,23 +24,11 @@ export default function TargetsManager() {
   
   // Validation error
   const [validationError, setValidationError] = useState("");
-  const [promoting, setPromoting] = useState(false);
-
-  const handleAutoPromote = async () => {
-    setPromoting(true);
+  const triggerEnrollment = async () => {
     try {
-      const res = await fetch("/api/targets/auto-promote", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        alert(data.message);
-        fetchTargets();
-      } else {
-        alert(`Auto-promotion failed: ${data.error || "Unknown error"}`);
-      }
-    } catch (err: any) {
-      alert(`Error promoting leads: ${err.message}`);
-    } finally {
-      setPromoting(false);
+      await fetch("/api/cron/enroll-leads", { method: "POST" });
+    } catch (err) {
+      console.error("Enrollment trigger failed:", err);
     }
   };
 
@@ -52,11 +40,10 @@ export default function TargetsManager() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('dream_targets')
+        .from('target_sequences')
         .select(`
           *,
-          target_sequences(*),
-          consents(*),
+          leads(*),
           conversions(*)
         `)
         .order('created_at', { ascending: false });
@@ -106,43 +93,30 @@ export default function TargetsManager() {
     }
 
     try {
-      // 1. Insert Target
+      // 1. Insert Target into the raw leads table
+      // It must pass the database-level generated columns (email_is_valid, is_generic_email) 
+      // to become sequence_ready.
       const { data: newTarget, error: insertError } = await supabase
-        .from('dream_targets')
+        .from('leads')
         .insert({
           company_name: companyName,
           contact_name: contactName,
           contact_title: contactTitle || 'Owner',
           email: email || null,
-          phone: phone || null,
-          linkedin_url: linkedinUrl || null,
-          instagram_handle: instagramHandle || null,
-          notes
+          phone_e164: phone || null,
+          email_verified: true, // Manual entries are assumed verified by the user
+          social_links: {
+            linkedin: linkedinUrl || null,
+            instagram: instagramHandle || null
+          }
         })
         .select()
         .single();
 
       if (insertError) throw insertError;
 
-      // 2. Insert WhatsApp Consent (default to opted_in: false, required for official API)
-      await supabase
-        .from('consents')
-        .insert({
-          target_id: newTarget.id,
-          channel: 'whatsapp',
-          opted_in: false,
-          source: 'manual_entry'
-        });
-
-      // 3. Assign Default 17-Touch Sequence
-      await supabase
-        .from('target_sequences')
-        .insert({
-          target_id: newTarget.id,
-          sequence_id: 'd3b07384-d113-4c9b-8c5d-2b47d3d19117', // Pre-seeded template UUID
-          current_step: 0,
-          status: 'active'
-        });
+      // 2. Trigger the Enrollment Gate cron to pick up this new lead and stage Touch 1
+      await triggerEnrollment();
 
       // Refresh list
       fetchTargets();
@@ -208,20 +182,13 @@ export default function TargetsManager() {
           <div className="flex justify-between items-center bg-card p-6 border border-border rounded-lg shadow-sm">
             <div>
               <h2 className="text-xl font-bold uppercase font-heading tracking-wide flex items-center gap-2">
-                <Target className="w-5 h-5 text-primary" /> Dream 25 Command
+                <Target className="w-5 h-5 text-primary" /> Active Pipeline
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Manage your top 25 high-value prospects currently undergoing the 17-touch campaign sequence.
+                Manage your high-value owner-direct prospects currently undergoing the outreach sequence.
               </p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={handleAutoPromote}
-                disabled={promoting}
-                className="px-4 py-2 border border-border bg-background hover:bg-secondary transition-all font-bold text-xs uppercase tracking-widest cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                <Target className="w-4 h-4 text-primary" /> {promoting ? "Promoting..." : "Auto-Promote Top Leads"}
-              </button>
               <button
                 onClick={() => setShowForm(!showForm)}
                 className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer inline-flex items-center gap-2 border border-primary"
