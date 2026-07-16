@@ -146,14 +146,31 @@ alter table public.touches enable row level security;
 alter table public.conversions enable row level security;
 
 -- Open policies for public access (Lead HQ pattern)
+drop policy if exists "Allow public read/write" on public.dream_targets;
 create policy "Allow public read/write" on public.dream_targets for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.social_accounts;
 create policy "Allow public read/write" on public.social_accounts for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.consents;
 create policy "Allow public read/write" on public.consents for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.sequences;
 create policy "Allow public read/write" on public.sequences for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.sequence_steps;
 create policy "Allow public read/write" on public.sequence_steps for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.target_sequences;
 create policy "Allow public read/write" on public.target_sequences for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.touch_queue;
 create policy "Allow public read/write" on public.touch_queue for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.touches;
 create policy "Allow public read/write" on public.touches for all using (true) with check (true);
+
+drop policy if exists "Allow public read/write" on public.conversions;
 create policy "Allow public read/write" on public.conversions for all using (true) with check (true);
 
 -- 11. Seed default 17-step outreach sequence
