@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2, Send } from "lucide-react";
+import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2, Send, Target } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -103,6 +103,85 @@ export default function Radar() {
       alert("Successfully logged to Inbox!");
     }
   };
+
+  const handlePromoteToDream25 = async (lead: any) => {
+    const contact = (lead.contact_name || '').trim();
+    const contactLower = contact.toLowerCase();
+    
+    const isGenericContact = !contact ||
+                             contactLower === 'n/a' ||
+                             contactLower.includes("info") ||
+                             contactLower.includes("support") ||
+                             contactLower.includes("contact") ||
+                             contactLower.includes("sales") ||
+                             contactLower.includes("team") ||
+                             contactLower.includes("office");
+
+    if (isGenericContact) {
+      alert("Promotion failed: A target must have a valid personal contact name, not a generic alias like 'info' or 'team'. The 17-touch sequence is wasted on a generic inbox.");
+      return;
+    }
+
+    try {
+      // Check if already exists in dream_targets
+      const { data: existing } = await supabase
+        .from('dream_targets')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .maybeSingle();
+
+      if (existing) {
+        alert("This lead is already in your Dream 25 targets.");
+        return;
+      }
+
+      // 1. Insert into dream_targets
+      const social = lead.social_links || {};
+      const { data: target, error: targetError } = await supabase
+        .from('dream_targets')
+        .insert({
+          lead_id: lead.id,
+          company_name: lead.company_name,
+          contact_name: lead.contact_name,
+          contact_title: 'Owner', // Default decision maker title
+          email: lead.email || null,
+          phone: lead.phone || null,
+          linkedin_url: social.linkedin || null,
+          instagram_handle: social.instagram || null,
+          notes: lead.ai_hook_draft || 'Promoted from Radar.'
+        })
+        .select()
+        .single();
+
+      if (targetError) throw targetError;
+
+      // 2. Insert WhatsApp consent
+      await supabase
+        .from('consents')
+        .insert({
+          target_id: target.id,
+          channel: 'whatsapp',
+          opted_in: false,
+          source: 'radar_promotion'
+        });
+
+      // 3. Assign 17-touch sequence
+      await supabase
+        .from('target_sequences')
+        .insert({
+          target_id: target.id,
+          sequence_id: 'd3b07384-d113-4c9b-8c5d-2b47d3d19117',
+          current_step: 0,
+          status: 'active'
+        });
+
+      alert(`Successfully promoted ${lead.company_name} to Dream 25 Targets!`);
+    } catch (err: any) {
+      console.error("Error promoting to Dream 25:", err);
+      alert(`Promotion failed: ${err.message}`);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -269,6 +348,13 @@ export default function Radar() {
                           Send
                         </a>
                       )}
+                      <button
+                        onClick={() => handlePromoteToDream25(lead)}
+                        className="inline-block p-2 bg-[#f59e0b]/10 text-[#f59e0b] hover:bg-[#f59e0b] hover:text-white transition-all opacity-0 group-hover:opacity-100 cursor-pointer border border-transparent hover:border-[#f59e0b]"
+                        title="Promote to Dream 25"
+                      >
+                        <Target className="w-4 h-4" />
+                      </button>
                       <Link 
                         href={`/campaigns?leadId=${lead.id}`}
                         className="inline-block p-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all opacity-0 group-hover:opacity-100 border border-primary"

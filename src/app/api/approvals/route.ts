@@ -1,0 +1,101 @@
+import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase/client';
+
+export async function GET() {
+  try {
+    const { data, error } = await supabase
+      .from('touch_queue')
+      .select(`
+        *,
+        dream_targets!inner(*)
+      `)
+      .eq('status', 'pending_approval')
+      .order('scheduled_for', { ascending: true });
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const { id, draft_body, status, approved_by } = await req.json();
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+    }
+
+    const updatePayload: any = {};
+    if (draft_body !== undefined) updatePayload.draft_body = draft_body;
+    if (status !== undefined) {
+      updatePayload.status = status;
+      if (status === 'approved') {
+        updatePayload.approved_at = new Date().toISOString();
+        updatePayload.approved_by = approved_by || 'system_operator';
+      }
+    }
+
+    const { data: queueItem, error } = await supabase
+      .from('touch_queue')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // If step is skipped, advance sequence step
+    if (status === 'skipped') {
+      await supabase
+        .from('target_sequences')
+        .update({ current_step: queueItem.step_number })
+        .eq('target_id', queueItem.target_id);
+        
+      // Also log touch honestly as skipped
+      await supabase
+        .from('touches')
+        .insert({
+          target_id: queueItem.target_id,
+          channel: queueItem.channel,
+          touch_type: queueItem.touch_type,
+          direction: 'outbound',
+          notes: `Touchpoint skipped by operator. Step ${queueItem.step_number} of 17.`,
+          queue_id: queueItem.id,
+          send_status: 'skipped'
+        });
+    }
+
+    return NextResponse.json({ success: true, data: queueItem });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// Bulk Approvals
+export async function POST(req: Request) {
+  try {
+    const { ids, approved_by } = await req.json();
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'Missing array of ids' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('touch_queue')
+      .update({
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+        approved_by: approved_by || 'system_operator'
+      })
+      .in('id', ids);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, message: `Successfully approved ${ids.length} items.` });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

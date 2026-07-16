@@ -67,6 +67,27 @@ export default function Sidebar() {
             <span className="font-medium">Activity Log</span>
           </span>
         </Link>
+        <div className="pt-4 pb-1">
+          <span className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest block font-heading">Dream 25 Engine</span>
+        </div>
+        <Link href="/dashboard/targets">
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/dashboard/targets' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
+            <Users className="w-5 h-5" />
+            <span className="font-medium">Dream 25 Targets</span>
+          </span>
+        </Link>
+        <Link href="/dashboard/approvals">
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/dashboard/approvals' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
+            <Flame className="w-5 h-5" />
+            <span className="font-medium">Approvals Queue</span>
+          </span>
+        </Link>
+        <Link href="/dashboard/insights">
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/dashboard/insights' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
+            <Award className="w-5 h-5" />
+            <span className="font-medium">Sequence Insights</span>
+          </span>
+        </Link>
       </nav>
 
       {/* Theme Toggle at bottom */}
