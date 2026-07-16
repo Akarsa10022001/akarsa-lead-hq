@@ -369,15 +369,27 @@ export default function TargetsManager() {
                     className="bg-card border border-border p-6 rounded-lg shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-border/80 transition-colors"
                   >
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-lg font-heading uppercase">{item.company_name}</span>
                         <span className={`px-2 py-0.5 border text-[9px] uppercase tracking-widest font-mono font-bold rounded ${
                           seq?.status === 'active' ? 'bg-primary/10 text-primary border-primary/20' :
                           seq?.status === 'replied' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                          seq?.status === 'paused' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
                           'bg-muted text-muted-foreground border-border'
                         }`}>
                           {seq?.status || 'inactive'}
                         </span>
+                        
+                        {seq?.channel_diversity_status === 'under_diversified' && (
+                          <span className="px-2 py-0.5 bg-orange-500/10 text-orange-500 border border-orange-500/20 text-[9px] uppercase tracking-widest font-mono font-bold rounded" title="Missing contact info for some channels. Background enrichment running.">
+                            Under-Diversified
+                          </span>
+                        )}
+                        {seq?.channel_diversity_status === 'critical' && (
+                          <span className="px-2 py-0.5 bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] uppercase tracking-widest font-mono font-bold rounded" title="Fell below diversity floor. Sequence paused.">
+                            Critical Diversity
+                          </span>
+                        )}
                       </div>
                       
                       <div className="text-sm text-muted-foreground mt-1">

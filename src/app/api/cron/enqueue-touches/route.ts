@@ -115,6 +115,65 @@ export async function POST(req: Request) {
         continue;
       }
 
+      // Guardrail: Check if we have the necessary data for the intended channel
+      const hasContactFor = (ch: string) => {
+        if (ch === 'linkedin') return !!target.linkedin_url;
+        if (ch === 'email') return !!target.email;
+        if (ch === 'whatsapp') return !!target.phone;
+        if (ch === 'instagram') return !!target.instagram_handle;
+        return true; // ads, etc.
+      };
+
+      if (!hasContactFor(nextStep.channel)) {
+        // Calculate remaining usable channels
+        const availableChannels = ['linkedin', 'email', 'whatsapp', 'instagram'].filter(ch => hasContactFor(ch));
+        
+        // Diversity Floor Exception: If dropping to 1 or 0 channels, pause entire sequence
+        if (availableChannels.length <= 1) {
+          logs.push(`Diversity Floor hit for ${target.company_name}: only ${availableChannels.length} channels available. Pausing sequence.`);
+          await supabase
+            .from('target_sequences')
+            .update({ 
+              status: 'paused',
+              channel_diversity_status: 'critical'
+            })
+            .eq('id', targetSeq.id);
+            
+          // Trigger async enrichment for everything we can
+          fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://akarsa-lead-hq.vercel.app'}/api/cron/enrich-targets?target_id=${target.id}`, { method: 'POST' }).catch(() => {});
+          continue;
+        }
+
+        // Standard Block & Skip: Log block in queue, advance sequence pointer, trigger enrichment
+        logs.push(`Blocked step ${nextStepNum} (${nextStep.channel}) for ${target.company_name}: missing data. Continuing timeline.`);
+        
+        await supabase
+          .from('touch_queue')
+          .insert({
+            target_id: target.id,
+            step_number: nextStepNum,
+            channel: nextStep.channel,
+            touch_type: nextStep.touch_type,
+            draft_body: `Blocked: Missing ${nextStep.channel} contact info.`,
+            status: 'blocked_missing_data',
+            scheduled_for: new Date().toISOString()
+          });
+
+        await supabase
+          .from('target_sequences')
+          .update({ 
+            current_step: nextStepNum,
+            channel_diversity_status: 'under_diversified'
+          })
+          .eq('id', targetSeq.id);
+
+        // Async Enrichment Trigger
+        fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://akarsa-lead-hq.vercel.app'}/api/cron/enrich-targets?target_id=${target.id}`, { method: 'POST' }).catch(() => {});
+        
+        skippedCount++;
+        continue;
+      }
+
       // Passive touch: ads (log directly, skip queue, advance step)
       if (nextStep.channel === 'ads') {
         const { error: touchError } = await supabase
