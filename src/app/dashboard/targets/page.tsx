@@ -24,6 +24,25 @@ export default function TargetsManager() {
   
   // Validation error
   const [validationError, setValidationError] = useState("");
+  const [promoting, setPromoting] = useState(false);
+
+  const handleAutoPromote = async () => {
+    setPromoting(true);
+    try {
+      const res = await fetch("/api/targets/auto-promote", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        fetchTargets();
+      } else {
+        alert(`Auto-promotion failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (err: any) {
+      alert(`Error promoting leads: ${err.message}`);
+    } finally {
+      setPromoting(false);
+    }
+  };
 
   useEffect(() => {
     fetchTargets();
@@ -195,12 +214,21 @@ export default function TargetsManager() {
                 Manage your top 25 high-value prospects currently undergoing the 17-touch campaign sequence.
               </p>
             </div>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer inline-flex items-center gap-2 border border-primary"
-            >
-              <Plus className="w-4 h-4" /> {showForm ? "Cancel" : "Add Target"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleAutoPromote}
+                disabled={promoting}
+                className="px-4 py-2 border border-border bg-background hover:bg-secondary transition-all font-bold text-xs uppercase tracking-widest cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                <Target className="w-4 h-4 text-primary" /> {promoting ? "Promoting..." : "Auto-Promote Top Leads"}
+              </button>
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer inline-flex items-center gap-2 border border-primary"
+              >
+                <Plus className="w-4 h-4" /> {showForm ? "Cancel" : "Add Target"}
+              </button>
+            </div>
           </div>
 
           {/* Add Target Form */}
