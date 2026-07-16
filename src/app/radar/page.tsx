@@ -62,13 +62,23 @@ export default function Radar() {
   };
 
   const handleEditLead = async (lead: any) => {
+    const newContactName = window.prompt("Enter contact person's name (e.g. John Doe):", lead.contact_name || "");
+    if (newContactName === null) return;
+
     const newPhone = window.prompt("Enter new phone number (include country code, e.g., 919876543210):", lead.phone || "");
-    if (newPhone !== null && newPhone !== lead.phone) {
-      const { error } = await supabase.from('leads').update({ phone: newPhone }).eq('id', lead.id);
+    if (newPhone === null) return;
+
+    const updatePayload: any = {};
+    if (newContactName !== lead.contact_name) updatePayload.contact_name = newContactName;
+    if (newPhone !== lead.phone) updatePayload.phone = newPhone;
+
+    if (Object.keys(updatePayload).length > 0) {
+      const { error } = await supabase.from('leads').update(updatePayload).eq('id', lead.id);
       if (!error) {
-        setLeads(leads.map(l => l.id === lead.id ? { ...l, phone: newPhone } : l));
+        setLeads(leads.map(l => l.id === lead.id ? { ...l, ...updatePayload } : l));
+        alert("Lead updated successfully!");
       } else {
-        alert("Failed to update phone number.");
+        alert("Failed to update lead info.");
       }
     }
   };
