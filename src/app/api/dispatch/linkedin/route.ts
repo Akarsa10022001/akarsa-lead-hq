@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       .from('touch_queue')
       .select(`
         *,
-        dream_targets!inner(*)
+        leads!inner(*)
       `)
       .eq('id', queueId)
       .single();
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Queue item not found' }, { status: 404 });
     }
 
-    const target = queueItem.dream_targets;
+    const target = queueItem.leads;
     if (!target.linkedin_url) {
       return NextResponse.json({ error: 'Target has no LinkedIn URL' }, { status: 400 });
     }
