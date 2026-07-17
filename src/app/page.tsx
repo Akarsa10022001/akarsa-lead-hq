@@ -29,38 +29,40 @@ export default function Home() {
   }, []);
 
   const fetchDashboardData = async () => {
-    // 1. Fetch metrics
-    const { count: leadsCount } = await supabase.from('leads').select('*', { count: 'exact', head: true });
-    const { count: emailsCount } = await supabase.from('outreach_messages').select('*', { count: 'exact', head: true }).neq('status', 'received');
-    const { count: repliesCount } = await supabase.from('outreach_messages').select('*', { count: 'exact', head: true }).eq('status', 'received');
-    
+    // 1. Fetch Funnel Metrics
+    const { count: rawLeadsCount } = await supabase.from('leads').select('*', { count: 'exact', head: true });
+    const { count: readyLeadsCount } = await supabase.from('sequence_ready_leads').select('*', { count: 'exact', head: true });
+    const { count: activeSequencesCount } = await supabase.from('target_sequences').select('*', { count: 'exact', head: true }).in('status', ['active', 'pending_enrollment']);
+    const { count: emailsSentCount } = await supabase.from('touches').select('*', { count: 'exact', head: true }).eq('send_status', 'sent');
+    const { count: repliesCount } = await supabase.from('target_sequences').select('*', { count: 'exact', head: true }).eq('status', 'replied');
+
     let convRate = "0%";
-    if (emailsCount && emailsCount > 0 && repliesCount !== null) {
-      convRate = ((repliesCount / emailsCount) * 100).toFixed(1) + "%";
+    if (emailsSentCount && emailsSentCount > 0 && repliesCount !== null) {
+      convRate = ((repliesCount / emailsSentCount) * 100).toFixed(1) + "%";
     }
 
     setMetrics({
-      totalLeads: leadsCount || 0,
-      emailsSent: emailsCount || 0,
-      meetingsBooked: repliesCount || 0, // Mapping replies to meetings booked for now
+      totalLeads: rawLeadsCount || 0,
+      readyLeads: readyLeadsCount || 0,
+      activeSequences: activeSequencesCount || 0,
+      emailsSent: emailsSentCount || 0,
+      replies: repliesCount || 0,
       conversionRate: convRate
-    });
+    } as any);
 
-    // 2. Fetch Recent Activity
+    // 2. Fetch Recent Activity from Touches
     const { data: activityData } = await supabase
-      .from('outreach_messages')
+      .from('touches')
       .select(`
         id,
-        sent_at,
+        created_at,
         channel,
-        status,
-        outreach_sequences!inner(
-          leads!inner(
-            company_name
-          )
+        send_status,
+        leads!inner(
+          company_name
         )
       `)
-      .order('sent_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(5);
 
     if (activityData) {
@@ -176,25 +178,28 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
             {/* Stat Cards */}
             {[
-              { title: "Total Leads", value: metrics.totalLeads.toString(), icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-              { title: "Messages Sent", value: metrics.emailsSent.toString(), icon: Mail, color: "text-primary", bg: "bg-primary/10" },
-              { title: "Replies Received", value: metrics.meetingsBooked.toString(), icon: CheckCircle2, color: "text-accent", bg: "bg-accent/10" },
-              { title: "Reply Rate", value: metrics.conversionRate, icon: TrendingUp, color: "text-orange-500", bg: "bg-orange-500/10" },
+              { title: "Total Raw Leads", value: (metrics as any).totalLeads?.toString() || "0", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+              { title: "Sequence Ready", value: (metrics as any).readyLeads?.toString() || "0", icon: BrainCircuit, color: "text-purple-500", bg: "bg-purple-500/10" },
+              { title: "Active Pipeline", value: (metrics as any).activeSequences?.toString() || "0", icon: TrendingUp, color: "text-orange-500", bg: "bg-orange-500/10" },
+              { title: "Emails Dispatched", value: (metrics as any).emailsSent?.toString() || "0", icon: Mail, color: "text-primary", bg: "bg-primary/10" },
+              { title: "Inbound Replies", value: (metrics as any).replies?.toString() || "0", icon: CheckCircle2, color: "text-accent", bg: "bg-accent/10" },
             ].map((stat, idx) => (
               <motion.div 
                 key={idx}
                 whileHover={{ y: -5 }}
-                className="p-6 bg-card border border-border flex items-center gap-4 relative overflow-hidden group"
+                className="p-5 bg-card border border-border flex flex-col justify-between relative overflow-hidden group"
               >
-                <div className={`w-12 h-12 flex items-center justify-center border border-border ${stat.bg} ${stat.color}`}>
-                  <stat.icon className="w-6 h-6" />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-8 h-8 flex items-center justify-center border border-border ${stat.bg} ${stat.color}`}>
+                    <stat.icon className="w-4 h-4" />
+                  </div>
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold leading-tight">{stat.title}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-xs uppercase tracking-widest font-semibold">{stat.title}</p>
-                  <h3 className="text-3xl font-bold mt-1 text-foreground font-heading">{stat.value}</h3>
+                  <h3 className="text-3xl font-bold text-foreground font-heading">{stat.value}</h3>
                 </div>
                 <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-gradient-to-br from-transparent to-primary/5 blur-2xl group-hover:bg-primary/10 transition-colors"></div>
               </motion.div>
