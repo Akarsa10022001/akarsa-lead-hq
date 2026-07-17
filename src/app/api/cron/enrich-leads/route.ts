@@ -203,19 +203,10 @@ export async function GET(request: Request) {
   const MAX_RUNTIME = 8000; // 8s hard cap (leave 2s buffer for Vercel's 10s limit)
   const BATCH_SIZE = 5;
 
+  const url = new URL(request.url);
+  const mode = url.searchParams.get('mode') || 'intent'; // 'intent' or 'email'
+
   try {
-    // CRITICAL: Only enrich NON-DISQUALIFIED leads. Don't waste cycles on competitors/non-buyers.
-    const { data: intentLeads, error: e1 } = await supabase
-      .from('leads')
-      .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified, runs_ads, has_pixel')
-      .eq('is_disqualified', false)
-      .eq('runs_ads', false)
-      .eq('has_pixel', false)
-      .not('domain', 'is', null)
-      .limit(BATCH_SIZE);
-
-    if (e1) throw e1;
-
     const results = {
       intent_checked: 0,
       pixels_found: 0,
@@ -226,66 +217,103 @@ export async function GET(request: Request) {
       domains_processed: [] as string[],
     };
 
-    if (!intentLeads || intentLeads.length === 0) {
-      return NextResponse.json({ success: true, message: 'No leads to enrich.', results });
-    }
+    if (mode === 'intent') {
+      // PASS 1: Intent signal enrichment for non-disqualified leads
+      const { data: intentLeads, error: e1 } = await supabase
+        .from('leads')
+        .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified, runs_ads, has_pixel')
+        .eq('is_disqualified', false)
+        .eq('runs_ads', false)
+        .eq('has_pixel', false)
+        .not('domain', 'is', null)
+        .limit(BATCH_SIZE);
 
-    for (const lead of intentLeads) {
-      // Check if we're running out of time
-      if (Date.now() - startTime > MAX_RUNTIME) break;
+      if (e1) throw e1;
 
-      try {
-        // NORMALIZE the domain from full URL to bare domain
-        const bareDomain = normalizeDomain(lead.domain);
-        results.domains_processed.push(bareDomain);
+      if (!intentLeads || intentLeads.length === 0) {
+        return NextResponse.json({ success: true, mode, message: 'No leads to enrich.', results });
+      }
 
-        const update: Record<string, any> = {};
+      for (const lead of intentLeads) {
+        if (Date.now() - startTime > MAX_RUNTIME) break;
 
-        // Part A: Real pixel/ad detection
-        const signals = await detectPixelsAndAds(bareDomain);
-        update.has_pixel = signals.has_pixel;
-        update.runs_ads = signals.runs_ads;
-        update.weak_website = signals.weak_website;
+        try {
+          const bareDomain = normalizeDomain(lead.domain);
+          results.domains_processed.push(bareDomain);
 
-        if (signals.has_pixel) results.pixels_found++;
-        if (signals.runs_ads) results.ads_found++;
-        if (signals.weak_website) results.weak_sites++;
-        results.intent_checked++;
+          const update: Record<string, any> = {};
+          const signals = await detectPixelsAndAds(bareDomain);
+          update.has_pixel = signals.has_pixel;
+          update.runs_ads = signals.runs_ads;
+          update.weak_website = signals.weak_website;
 
-        // Part B: Owner email enrichment (only if they have a generic/missing email)
-        if (!lead.email || lead.is_generic_email) {
-          const ownerEmail = await discoverOwnerEmail(
-            bareDomain,
-            lead.contact_name,
-            lead.social_links
-          );
+          if (signals.has_pixel) results.pixels_found++;
+          if (signals.runs_ads) results.ads_found++;
+          if (signals.weak_website) results.weak_sites++;
+          results.intent_checked++;
+
+          // Also try email enrichment if this lead has a generic/missing email
+          if (!lead.email || lead.is_generic_email) {
+            const ownerEmail = await discoverOwnerEmail(bareDomain, lead.contact_name, lead.social_links);
+            if (ownerEmail) {
+              update.email = ownerEmail;
+              results.emails_found++;
+            }
+          }
+
+          if (Object.keys(update).length > 0) {
+            const { error: updateErr } = await supabase.from('leads').update(update).eq('id', lead.id);
+            if (updateErr) results.errors++;
+          }
+        } catch {
+          results.errors++;
+        }
+      }
+
+    } else if (mode === 'email') {
+      // PASS 2: Owner-email recovery for DISQUALIFIED leads
+      // These are the ~522 with generic emails + ~186 with no email.
+      // If we find a real owner email, is_disqualified will auto-flip to false.
+      const { data: emailLeads, error: e2 } = await supabase
+        .from('leads')
+        .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified')
+        .eq('is_disqualified', true)
+        .not('domain', 'is', null)
+        .or('email.is.null,is_generic_email.eq.true')
+        .limit(BATCH_SIZE);
+
+      if (e2) throw e2;
+
+      if (!emailLeads || emailLeads.length === 0) {
+        return NextResponse.json({ success: true, mode, message: 'No disqualified leads with recoverable email.', results });
+      }
+
+      for (const lead of emailLeads) {
+        if (Date.now() - startTime > MAX_RUNTIME) break;
+
+        try {
+          const bareDomain = normalizeDomain(lead.domain);
+          results.domains_processed.push(bareDomain);
+
+          const ownerEmail = await discoverOwnerEmail(bareDomain, lead.contact_name, lead.social_links);
           if (ownerEmail) {
-            update.email = ownerEmail;
-            results.emails_found++;
+            const { error: updateErr } = await supabase
+              .from('leads')
+              .update({ email: ownerEmail })
+              .eq('id', lead.id);
+            if (!updateErr) results.emails_found++;
+            else results.errors++;
           }
+          results.intent_checked++;
+        } catch {
+          results.errors++;
         }
-
-        // Write the real values to the database
-        if (Object.keys(update).length > 0) {
-          const { error: updateErr } = await supabase
-            .from('leads')
-            .update(update)
-            .eq('id', lead.id);
-
-          if (updateErr) {
-            console.error(`Update error for ${lead.id}:`, updateErr);
-            results.errors++;
-          }
-        }
-      } catch (err) {
-        console.error(`Enrichment error for lead ${lead.id}:`, err);
-        results.errors++;
       }
     }
 
     return NextResponse.json({
       success: true,
-      batch_size: intentLeads.length,
+      mode,
       runtime_ms: Date.now() - startTime,
       results,
     });
@@ -295,3 +323,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message, runtime_ms: Date.now() - startTime }, { status: 500 });
   }
 }
+

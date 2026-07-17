@@ -6,67 +6,27 @@ export async function GET(request: Request) {
   const action = url.searchParams.get('action');
 
   try {
-    if (action === 'domains') {
-      // Show what domains look like in the DB
-      const { data } = await supabase
-        .from('leads')
-        .select('id, domain, has_website, company_name')
-        .not('domain', 'is', null)
-        .eq('runs_ads', false)
-        .limit(20);
-      return NextResponse.json({ sample_domains: data });
-    }
-
-    if (action === 'test-fetch') {
-      // Actually try to fetch a specific domain and show what we get
-      const testDomain = url.searchParams.get('domain');
-      if (!testDomain) return NextResponse.json({ error: 'provide ?domain=example.com' });
-
-      const urls = [`https://${testDomain}`, `https://www.${testDomain}`, `http://${testDomain}`];
-      const results: any[] = [];
-
-      for (const u of urls) {
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 5000);
-          const res = await fetch(u, {
-            signal: controller.signal,
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-            redirect: 'follow',
-          });
-          clearTimeout(timer);
-          const text = await res.text();
-          const lower = text.toLowerCase();
-          results.push({
-            url: u,
-            status: res.status,
-            html_length: text.length,
-            has_fbevents: lower.includes('fbevents.js'),
-            has_fbq: lower.includes("fbq("),
-            has_fb_tr: lower.includes('facebook.com/tr'),
-            has_gtm: lower.includes('googletagmanager.com'),
-            has_gtag: lower.includes('gtag/js'),
-            has_ga: lower.includes('google-analytics.com'),
-            has_google_ads: lower.includes('googleads.g.doubleclick.net'),
-            first_500_chars: text.substring(0, 500),
-          });
-          break; // got a response
-        } catch (e: any) {
-          results.push({ url: u, error: e.message || 'fetch failed' });
-        }
-      }
-      return NextResponse.json({ domain: testDomain, results });
-    }
-
-    if (action === 'enrich') {
-      const batchResults = [];
+    if (action === 'enrich-all') {
+      // Run intent batches, then email recovery batches
+      const allResults: any[] = [];
+      
+      // Intent signal batches (6 rounds = up to 30 leads)
       for (let i = 0; i < 6; i++) {
-        const res = await fetch(`${url.origin}/api/cron/enrich-leads`);
+        const res = await fetch(`${url.origin}/api/cron/enrich-leads?mode=intent`);
         const data = await res.json();
-        batchResults.push(data);
-        if (data.message === 'No leads to enrich.') break;
+        allResults.push({ type: 'intent', ...data });
+        if (data.message) break;
       }
-      return NextResponse.json({ batches: batchResults });
+
+      // Email recovery batches (6 rounds = up to 30 disqualified leads)
+      for (let i = 0; i < 6; i++) {
+        const res = await fetch(`${url.origin}/api/cron/enrich-leads?mode=email`);
+        const data = await res.json();
+        allResults.push({ type: 'email', ...data });
+        if (data.message) break;
+      }
+
+      return NextResponse.json({ batches: allResults });
     }
 
     // Verification queries
