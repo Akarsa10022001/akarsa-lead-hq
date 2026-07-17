@@ -63,17 +63,50 @@ export async function POST(req: Request) {
         if (stepError || !nextStep) throw new Error('Failed to fetch step 1');
 
         // Draft the first touch
+        // Fear-Match Prompting based on Geo Tier
+        let geoStrategy = "Lead with ROI and traceability ('every number tied to revenue').";
+        let complianceRules = "Include a polite, low-friction opt-out mechanism (e.g. 'Let me know if you are not the right person').";
+
+        const geoLower = (lead.geo || '').toLowerCase();
+        if (geoLower.includes('uae') || geoLower.includes('dubai') || geoLower.includes('emirates')) {
+          geoStrategy = "Lead with premium quality and prestige, NOT cheapness or discounting.";
+        } else if (geoLower.includes('india') || geoLower.includes('sea') || geoLower.includes('singapore') || geoLower.includes('malaysia') || geoLower.includes('philippines')) {
+          geoStrategy = "Lead with anti-vanity-metrics. Focus on real walk-ins and avoiding fabricated numbers or agencies that just sell 'likes'.";
+        } else if (lead.is_eu_lead) {
+          geoStrategy = "Ensure a highly professional, transparent tone. Offer value upfront before asking for a meeting.";
+          complianceRules = "STRICT COMPLIANCE: Must include GDPR-compliant double opt-in language and state exactly why you are emailing them. (e.g. 'I am reaching out because I saw your business on Google Maps and believe we can help. If you do not wish to receive further emails, please reply UNSUBSCRIBE.'). Do not use tracking pixels.";
+        }
+
+        // Build Intent Signals String
+        const signals = [];
+        if (lead.runs_ads) signals.push("They are currently running Meta/Facebook Ads.");
+        if (lead.has_pixel) signals.push("They have a tracking pixel on their website.");
+        if (lead.ig_active_low_engagement) signals.push("They post on Instagram but get very low engagement/likes.");
+        if (lead.recent_reviews) signals.push("They recently got reviews on Google Maps.");
+        if (lead.weak_website) signals.push("They have a weak or non-existent website.");
+
+        const signalContext = signals.length > 0 
+          ? `Specific Observations (Use these to fear-match and hook them):\\n- ${signals.join('\\n- ')}` 
+          : 'Observation: They are a local business trying to grow.';
+
         const prompt = `You are a high-end sales copywriter drafting the first cold outreach email for a local business owner.
 Target Profile:
 - Company Name: ${lead.company_name}
 - Contact Person: ${lead.contact_name} (Title: ${lead.contact_title || 'Owner/Founder'})
 - Industry: ${lead.industry || 'Local Business'}
+- Location: ${lead.geo || 'Unknown'}
+
+Strategy & Constraints:
+- Geo-Specific Strategy: ${geoStrategy}
+- Compliance: ${complianceRules}
+- ${signalContext}
 
 Outreach Channel: ${nextStep.channel.toUpperCase()}
 Instruction Hint: ${nextStep.prompt_hint}
 
 Goal:
-Write a highly personalized, short, compelling cold email. No buzzwords, no standard marketing speak. Focus on local context if available. Include a Subject line.
+Write a highly personalized, short, compelling cold email. No buzzwords, no standard marketing speak. Focus on local context if available. It must feel like a 1-to-1 email written by a human.
+Include a Subject line.
 
 Return a JSON object with:
 {

@@ -1,15 +1,19 @@
 {
   "crons": [
     {
-      "path": "/api/cron/discovery",
+      "path": "/api/cron/scrape-leads",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/enrich-leads",
       "schedule": "0 9 * * *"
     },
     {
-      "path": "/api/cron/enqueue-touches",
+      "path": "/api/cron/enroll-leads",
       "schedule": "0 10 * * *"
     },
     {
-      "path": "/api/cron/enroll-leads",
+      "path": "/api/cron/enqueue-touches",
       "schedule": "0 11 * * *"
     }
   ]

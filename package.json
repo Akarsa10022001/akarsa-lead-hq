@@ -13,6 +13,7 @@
     "arima": "^0.2.8",
     "cheerio": "^1.2.0",
     "deep-email-validator": "^0.1.27",
+    "dotenv": "^17.4.2",
     "framer-motion": "^12.42.0",
     "imap-simple": "^5.1.0",
     "libphonenumber-js": "^1.13.7",
