@@ -34,7 +34,9 @@ alter table leads add column if not exists is_eu_lead boolean
   ) stored;
 
 -- 3. Inversion Disqualification Logic
-alter table leads drop column if exists is_disqualified;
+drop view if exists sequence_ready_leads cascade;
+drop view if exists lead_scores cascade;
+alter table leads drop column if exists is_disqualified cascade;
 alter table leads add column is_disqualified boolean
   generated always as (
     COALESCE(
