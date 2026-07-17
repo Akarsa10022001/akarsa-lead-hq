@@ -9,6 +9,23 @@ const FETCH_TIMEOUT = 5000; // 5s per site
 const GENERIC_PREFIXES = /^(info|contact|hello|admin|reservations?|bookings?|groups|sales|enquir|restaurants?|catering|membership|reception|office|team|support|hr|jobs|careers|noreply|no-reply|marketing|press|media|billing|accounts?)@/i;
 const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
+// CRITICAL FIX: The `domain` column stores full URLs like "https://example.com/path"
+// We must normalize to bare "example.com" before any fetch or DNS operation.
+function normalizeDomain(raw: string): string {
+  let d = raw.trim();
+  // Strip protocol
+  d = d.replace(/^https?:\/\//, '');
+  // Strip www.
+  d = d.replace(/^www\./, '');
+  // Strip trailing path, query, hash
+  d = d.split('/')[0];
+  d = d.split('?')[0];
+  d = d.split('#')[0];
+  // Strip trailing dot
+  d = d.replace(/\.$/, '');
+  return d.toLowerCase();
+}
+
 async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -17,7 +34,7 @@ async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT): Promise
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
       redirect: 'follow',
@@ -33,28 +50,52 @@ async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT): Promise
 }
 
 // Part A: REAL pixel/ad detection from live HTML
-async function detectPixelsAndAds(domain: string): Promise<{ has_pixel: boolean; runs_ads: boolean; weak_website: boolean }> {
-  const urls = [`https://${domain}`, `https://www.${domain}`, `http://${domain}`];
+async function detectPixelsAndAds(bareDomain: string): Promise<{ has_pixel: boolean; runs_ads: boolean; weak_website: boolean }> {
+  // Try fetching the actual site with properly formed URLs
+  const urls = [
+    `https://${bareDomain}`,
+    `https://www.${bareDomain}`,
+    `http://${bareDomain}`,
+  ];
   let html: string | null = null;
 
   for (const url of urls) {
     html = await fetchWithTimeout(url);
-    if (html) break;
+    if (html && html.length > 500) break; // got real content
   }
 
-  if (!html) {
+  if (!html || html.length < 500) {
     return { has_pixel: false, runs_ads: false, weak_website: true };
   }
 
   const lower = html.toLowerCase();
 
   // Detect Meta Pixel (fbevents.js, fbq())
-  const hasMetaPixel = lower.includes('fbevents.js') || lower.includes("fbq('init") || lower.includes('fbq("init') || lower.includes('facebook.com/tr?');
+  const hasMetaPixel =
+    lower.includes('fbevents.js') ||
+    lower.includes("fbq('init") ||
+    lower.includes('fbq("init') ||
+    lower.includes('facebook.com/tr?') ||
+    lower.includes('connect.facebook.net');
 
-  // Detect Google Ads / GA / GTM
-  const hasGoogleAds = lower.includes('googleads.g.doubleclick.net') || lower.includes('google_conversion_id') || lower.includes('ads/ga-audiences');
+  // Detect Google Ads conversion / remarketing tags
+  const hasGoogleAds =
+    lower.includes('googleads.g.doubleclick.net') ||
+    lower.includes('google_conversion_id') ||
+    lower.includes('ads/ga-audiences') ||
+    lower.includes('google_remarketing') ||
+    lower.includes('adwords.google.com');
+
+  // Detect Google Tag Manager
   const hasGTM = lower.includes('googletagmanager.com/gtm.js') || lower.includes('googletagmanager.com/ns.html');
-  const hasGA = lower.includes('gtag/js') || lower.includes('google-analytics.com/analytics.js') || lower.includes('ga.js');
+
+  // Detect Google Analytics
+  const hasGA =
+    lower.includes('gtag/js') ||
+    lower.includes('google-analytics.com/analytics.js') ||
+    lower.includes('google-analytics.com/ga.js') ||
+    lower.includes("gtag('config'") ||
+    lower.includes('gtag("config"');
 
   // Detect TikTok Pixel
   const hasTikTok = lower.includes('analytics.tiktok.com') || lower.includes("ttq.load");
@@ -62,20 +103,25 @@ async function detectPixelsAndAds(domain: string): Promise<{ has_pixel: boolean;
   // Detect Snapchat Pixel
   const hasSnapchat = lower.includes('sc-static.net/scevent.min.js');
 
-  const has_pixel = hasMetaPixel || hasGA || hasGTM || hasTikTok || hasSnapchat;
-  // runs_ads = true if they have an ad-specific pixel (Meta, Google Ads, TikTok, Snapchat)
-  // GA/GTM alone doesn't prove ads, but Meta Pixel / Google Ads tags do
-  const runs_ads = hasMetaPixel || hasGoogleAds || hasTikTok || hasSnapchat;
+  // Detect LinkedIn Insight Tag
+  const hasLinkedIn = lower.includes('snap.licdn.com/li.lms-analytics');
 
-  // weak_website = page is suspiciously short (placeholder/parked domain)
-  const weak_website = html.length < 2000;
+  // has_pixel = ANY tracking tag present (GA, GTM, Meta, etc.)
+  const has_pixel = hasMetaPixel || hasGA || hasGTM || hasTikTok || hasSnapchat || hasLinkedIn || hasGoogleAds;
+
+  // runs_ads = evidence of PAID advertising (Meta Pixel, Google Ads conversion, TikTok, Snapchat)
+  // GA/GTM alone = analytics, not necessarily ads
+  const runs_ads = hasMetaPixel || hasGoogleAds || hasTikTok || hasSnapchat || hasLinkedIn;
+
+  // weak_website = very short page (parked domain or placeholder)
+  const weak_website = html.length < 3000;
 
   return { has_pixel, runs_ads, weak_website };
 }
 
 // Part B: REAL owner-email discovery
 async function discoverOwnerEmail(
-  domain: string,
+  bareDomain: string,
   contactName: string | null,
   socialLinks: any
 ): Promise<string | null> {
@@ -84,16 +130,22 @@ async function discoverOwnerEmail(
   // Step 1: Scrape website pages for emails
   const pagePaths = ['', '/about', '/about-us', '/team', '/contact', '/contact-us'];
   for (const path of pagePaths) {
-    const urls = [`https://${domain}${path}`, `https://www.${domain}${path}`];
-    for (const url of urls) {
-      const html = await fetchWithTimeout(url, 3000);
-      if (html) {
-        const emails = html.match(EMAIL_REGEX) || [];
-        foundEmails.push(...emails);
-        break; // got HTML from one variant, skip the other
-      }
+    const url = `https://${bareDomain}${path}`;
+    const html = await fetchWithTimeout(url, 3000);
+    if (html) {
+      const emails = html.match(EMAIL_REGEX) || [];
+      foundEmails.push(...emails);
     }
     if (foundEmails.length > 5) break; // enough candidates
+  }
+
+  // Also try www. variant if nothing found
+  if (foundEmails.length === 0) {
+    const html = await fetchWithTimeout(`https://www.${bareDomain}`, 3000);
+    if (html) {
+      const emails = html.match(EMAIL_REGEX) || [];
+      foundEmails.push(...emails);
+    }
   }
 
   // Step 2: Try Instagram bio scrape
@@ -113,9 +165,9 @@ async function discoverOwnerEmail(
     // Skip generic prefixes
     if (GENERIC_PREFIXES.test(lower)) return false;
     // Skip image/file extensions that regex falsely matches
-    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.svg') || lower.endsWith('.webp')) return false;
-    // Skip common false positives
-    if (lower.includes('example.com') || lower.includes('sentry.io') || lower.includes('wixpress') || lower.includes('wordpress')) return false;
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.svg') || lower.endsWith('.webp') || lower.endsWith('.gif')) return false;
+    // Skip common false positives from JS/CSS
+    if (lower.includes('example.com') || lower.includes('sentry.io') || lower.includes('wixpress') || lower.includes('wordpress') || lower.includes('w3.org') || lower.includes('schema.org') || lower.includes('googleapis.com')) return false;
     return true;
   });
 
@@ -127,15 +179,14 @@ async function discoverOwnerEmail(
   }
 
   // Step 3: Domain pattern guess + MX verification
-  if (contactName && domain) {
-    const cleanDomain = domain.replace(/^www\./, '');
+  if (contactName && bareDomain) {
     try {
-      const mxRecords = await dns.resolveMx(cleanDomain);
+      const mxRecords = await dns.resolveMx(bareDomain);
       if (mxRecords && mxRecords.length > 0) {
         // MX exists — the domain can receive email
         const firstName = contactName.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '');
         if (firstName && firstName.length >= 2) {
-          return `${firstName}@${cleanDomain}`;
+          return `${firstName}@${bareDomain}`;
         }
       }
     } catch {
@@ -153,12 +204,11 @@ export async function GET(request: Request) {
   const BATCH_SIZE = 5;
 
   try {
-    // Fetch leads that need enrichment:
-    // - Non-disqualified leads where runs_ads is still false (intent signals not checked)
-    // - OR disqualified leads with generic/missing email (owner email enrichment)
+    // CRITICAL: Only enrich NON-DISQUALIFIED leads. Don't waste cycles on competitors/non-buyers.
     const { data: intentLeads, error: e1 } = await supabase
       .from('leads')
       .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified, runs_ads, has_pixel')
+      .eq('is_disqualified', false)
       .eq('runs_ads', false)
       .eq('has_pixel', false)
       .not('domain', 'is', null)
@@ -173,6 +223,7 @@ export async function GET(request: Request) {
       emails_found: 0,
       weak_sites: 0,
       errors: 0,
+      domains_processed: [] as string[],
     };
 
     if (!intentLeads || intentLeads.length === 0) {
@@ -184,25 +235,27 @@ export async function GET(request: Request) {
       if (Date.now() - startTime > MAX_RUNTIME) break;
 
       try {
+        // NORMALIZE the domain from full URL to bare domain
+        const bareDomain = normalizeDomain(lead.domain);
+        results.domains_processed.push(bareDomain);
+
         const update: Record<string, any> = {};
 
         // Part A: Real pixel/ad detection
-        if (lead.domain) {
-          const signals = await detectPixelsAndAds(lead.domain);
-          update.has_pixel = signals.has_pixel;
-          update.runs_ads = signals.runs_ads;
-          update.weak_website = signals.weak_website;
+        const signals = await detectPixelsAndAds(bareDomain);
+        update.has_pixel = signals.has_pixel;
+        update.runs_ads = signals.runs_ads;
+        update.weak_website = signals.weak_website;
 
-          if (signals.has_pixel) results.pixels_found++;
-          if (signals.runs_ads) results.ads_found++;
-          if (signals.weak_website) results.weak_sites++;
-          results.intent_checked++;
-        }
+        if (signals.has_pixel) results.pixels_found++;
+        if (signals.runs_ads) results.ads_found++;
+        if (signals.weak_website) results.weak_sites++;
+        results.intent_checked++;
 
         // Part B: Owner email enrichment (only if they have a generic/missing email)
         if (!lead.email || lead.is_generic_email) {
           const ownerEmail = await discoverOwnerEmail(
-            lead.domain,
+            bareDomain,
             lead.contact_name,
             lead.social_links
           );
