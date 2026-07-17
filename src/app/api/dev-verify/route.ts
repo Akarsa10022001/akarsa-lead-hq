@@ -1,17 +1,66 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 
-// Temporary route to trigger enrichment batches and fetch verification metrics.
-// This will be deleted after verification is complete.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const action = url.searchParams.get('action');
 
   try {
+    if (action === 'domains') {
+      // Show what domains look like in the DB
+      const { data } = await supabase
+        .from('leads')
+        .select('id, domain, has_website, company_name')
+        .not('domain', 'is', null)
+        .eq('runs_ads', false)
+        .limit(20);
+      return NextResponse.json({ sample_domains: data });
+    }
+
+    if (action === 'test-fetch') {
+      // Actually try to fetch a specific domain and show what we get
+      const testDomain = url.searchParams.get('domain');
+      if (!testDomain) return NextResponse.json({ error: 'provide ?domain=example.com' });
+
+      const urls = [`https://${testDomain}`, `https://www.${testDomain}`, `http://${testDomain}`];
+      const results: any[] = [];
+
+      for (const u of urls) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 5000);
+          const res = await fetch(u, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            redirect: 'follow',
+          });
+          clearTimeout(timer);
+          const text = await res.text();
+          const lower = text.toLowerCase();
+          results.push({
+            url: u,
+            status: res.status,
+            html_length: text.length,
+            has_fbevents: lower.includes('fbevents.js'),
+            has_fbq: lower.includes("fbq("),
+            has_fb_tr: lower.includes('facebook.com/tr'),
+            has_gtm: lower.includes('googletagmanager.com'),
+            has_gtag: lower.includes('gtag/js'),
+            has_ga: lower.includes('google-analytics.com'),
+            has_google_ads: lower.includes('googleads.g.doubleclick.net'),
+            first_500_chars: text.substring(0, 500),
+          });
+          break; // got a response
+        } catch (e: any) {
+          results.push({ url: u, error: e.message || 'fetch failed' });
+        }
+      }
+      return NextResponse.json({ domain: testDomain, results });
+    }
+
     if (action === 'enrich') {
-      // Run multiple batches of the enrichment cron
       const batchResults = [];
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 6; i++) {
         const res = await fetch(`${url.origin}/api/cron/enrich-leads`);
         const data = await res.json();
         batchResults.push(data);
@@ -20,38 +69,29 @@ export async function GET(request: Request) {
       return NextResponse.json({ batches: batchResults });
     }
 
-    // Verification queries using count approach
-    // (1) runs_ads / has_pixel / intent counts
+    // Verification queries
     const { data: allLeads } = await supabase.from('leads').select('runs_ads, has_pixel, intent_signal_count');
-    
     const runsAdsCount = allLeads?.filter(l => l.runs_ads === true).length || 0;
     const hasPixelCount = allLeads?.filter(l => l.has_pixel === true).length || 0;
     const intentCount = allLeads?.filter(l => (l.intent_signal_count || 0) >= 1).length || 0;
 
-    // (2) count where not disqualified
     const { count: notDisqualified } = await supabase
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .eq('is_disqualified', false);
 
-    // (3) close_score min/max
     const { data: scores } = await supabase.from('close_score').select('close_score');
-    let minScore = null;
-    let maxScore = null;
+    let minScore = null, maxScore = null;
     if (scores && scores.length > 0) {
       const vals = scores.map(s => s.close_score).filter(v => v != null);
       minScore = Math.min(...vals);
       maxScore = Math.max(...vals);
     }
 
-    // (4) dev-verify 404 proof
-    const devVerifyCheck = 'This route IS dev-verify. After verification, it will be deleted and return 404.';
-
     return NextResponse.json({
       query_1: { runs_ads: runsAdsCount, has_pixel: hasPixelCount, intent_gte_1: intentCount },
       query_2: { not_disqualified: notDisqualified },
       query_3: { min_close_score: minScore, max_close_score: maxScore },
-      note: devVerifyCheck,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
