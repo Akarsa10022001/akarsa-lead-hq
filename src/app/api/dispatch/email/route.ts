@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 export async function POST(req: Request) {
   try {
@@ -69,26 +70,62 @@ export async function POST(req: Request) {
     // Convert newlines to html line breaks
     const htmlBody = body.replace(/\n/g, '<br/>');
 
-    // 4. Handle Resend Sandbox Mode (Free Tier)
-    let finalToEmail = target.email;
-    let finalSubject = subject;
+    // 4. Send Email (Nodemailer Gmail Fallback OR Resend)
+    const isGenericSmtp = !!process.env.SMTP_HOST;
+    const gmailUser = isGenericSmtp ? process.env.SMTP_USER : process.env.GMAIL_USER;
+    const gmailPass = isGenericSmtp ? process.env.SMTP_PASS : process.env.GMAIL_APP_PASSWORD;
 
-    if (senderEmail === 'onboarding@resend.dev') {
-      // In Resend Sandbox, you can only send to your own registered email address
-      finalToEmail = 'beakarsa@gmail.com';
-      finalSubject = `[TEST FOR: ${target.email}] ${subject}`;
+    let providerMsgId = '';
+    let sendErrorMessage = '';
+
+    try {
+      if (gmailUser && gmailPass) {
+        // USE GMAIL / SMTP DIRECTLY
+        const transporterOptions: any = isGenericSmtp ? {
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: { user: gmailUser, pass: gmailPass }
+        } : {
+          service: 'gmail',
+          auth: { user: gmailUser, pass: gmailPass }
+        };
+
+        const transporter = nodemailer.createTransport(transporterOptions);
+        const info = await transporter.sendMail({
+          from: `"Akarsa" <${gmailUser}>`,
+          to: target.email,
+          subject: subject,
+          html: `<div style="font-family: sans-serif; font-size: 15px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
+        });
+        providerMsgId = info.messageId || 'smtp-sent';
+
+      } else {
+        // FALLBACK TO RESEND API
+        let finalToEmail = target.email;
+        let finalSubject = subject;
+
+        if (senderEmail === 'onboarding@resend.dev') {
+          finalToEmail = 'beakarsa@gmail.com';
+          finalSubject = `[TEST FOR: ${target.email}] ${subject}`;
+        }
+
+        const resend = new Resend(apiKey);
+        const { data: resendResult, error: resendError } = await resend.emails.send({
+          from: `Akarsa <${senderEmail}>`,
+          to: finalToEmail,
+          subject: finalSubject,
+          html: `<div style="font-family: sans-serif; font-size: 15px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
+        });
+
+        if (resendError) throw new Error(resendError.message);
+        providerMsgId = resendResult?.id || '';
+      }
+    } catch (sendError: any) {
+      sendErrorMessage = sendError.message;
     }
 
-    // 5. Send email using Resend
-    const resend = new Resend(apiKey);
-    const { data: resendResult, error: resendError } = await resend.emails.send({
-      from: `Akarsa <${senderEmail}>`,
-      to: finalToEmail,
-      subject: finalSubject,
-      html: `<div style="font-family: sans-serif; font-size: 15px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
-    });
-
-    if (resendError) {
+    if (sendErrorMessage) {
       // Log honest failure
       await supabase
         .from('touches')
@@ -97,7 +134,7 @@ export async function POST(req: Request) {
           channel: 'email',
           touch_type: queueItem.touch_type,
           direction: 'outbound',
-          notes: `Resend dispatch failed: ${resendError.message}`,
+          notes: `Dispatch failed: ${sendErrorMessage}`,
           queue_id: queueItem.id,
           send_status: 'failed'
         });
@@ -107,10 +144,8 @@ export async function POST(req: Request) {
         .update({ status: 'failed' })
         .eq('id', queueItem.id);
 
-      return NextResponse.json({ success: false, error: resendError.message });
+      return NextResponse.json({ success: false, error: sendErrorMessage });
     }
-
-    const providerMsgId = resendResult?.id || '';
 
     // 5. Log honest success
     await supabase
