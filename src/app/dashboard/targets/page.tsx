@@ -177,11 +177,18 @@ export default function TargetsManager() {
   };
 
   const handleDeleteTarget = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this target from Dream 25? This will drop their sequence and outcomes.")) return;
+    if (!confirm("Are you sure you want to remove this target from the sequence? They will be marked as Rejected and will not be auto-enrolled again.")) return;
     try {
-      const { error } = await supabase
-        .from('dream_targets')
+      // 1. Drop their sequence
+      await supabase
+        .from('target_sequences')
         .delete()
+        .eq('target_id', id);
+
+      // 2. Mark them as rejected so the cron job doesn't pick them back up
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: 'Rejected' })
         .eq('id', id);
 
       if (error) throw error;
