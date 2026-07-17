@@ -96,7 +96,7 @@ export default function ApprovalsQueue() {
         // Set state to open the manual modal
         setAssistedData({
           id: item.id,
-          url: result.linkedinUrl || result.instagramUrl || `https://wa.me/${(item.dream_targets.phone || '').replace(/[\s\-()]/g, '').replace(/^\+/, '')}`,
+          url: result.linkedinUrl || result.instagramUrl || `https://wa.me/${(item.leads.phone_e164 || '').replace(/[\s\-()]/g, '').replace(/^\+/, '')}`,
           body: result.draftBody || item.draft_body,
           channel: item.channel
         });
@@ -202,8 +202,8 @@ export default function ApprovalsQueue() {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-lg font-heading uppercase">{item.dream_targets.company_name}</span>
-                          <span className="text-xs text-muted-foreground">({item.dream_targets.contact_name})</span>
+                          <span className="font-bold text-lg font-heading uppercase">{item.leads.company_name}</span>
+                          <span className="text-xs text-muted-foreground">({item.leads.contact_name})</span>
                         </div>
                         <div className="flex items-center gap-3 mt-1.5">
                           <span className="px-2 py-0.5 bg-background border border-border text-[9px] uppercase tracking-widest font-mono font-bold text-muted-foreground">

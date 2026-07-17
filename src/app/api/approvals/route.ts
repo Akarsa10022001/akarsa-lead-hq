@@ -7,7 +7,7 @@ export async function GET() {
       .from('touch_queue')
       .select(`
         *,
-        dream_targets!inner(*)
+        leads!inner(*)
       `)
       .eq('status', 'pending_approval')
       .order('scheduled_for', { ascending: true });
