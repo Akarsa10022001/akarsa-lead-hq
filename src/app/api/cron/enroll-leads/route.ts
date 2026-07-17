@@ -51,38 +51,19 @@ export async function POST(req: Request) {
     }
 
     for (const lead of leadsToStage) {
-      // Create sequence in pending_enrollment state
-      const { data: targetSeq, error: insertSeqError } = await supabase
-        .from('target_sequences')
-        .insert({
-          target_id: lead.id,
-          sequence_id: 'd3b07384-d113-4c9b-8c5d-2b47d3d19117',
-          current_step: 0,
-          status: 'pending_enrollment' // The critical guardrail
-        })
-        .select()
-        .single();
+      try {
+        // Fetch Step 1
+        const { data: nextStep, error: stepError } = await supabase
+          .from('sequence_steps')
+          .select('*')
+          .eq('sequence_id', 'd3b07384-d113-4c9b-8c5d-2b47d3d19117')
+          .eq('step_number', 1)
+          .single();
 
-      if (insertSeqError) {
-        logs.push(`Failed to create sequence for ${lead.company_name}: ${insertSeqError.message}`);
-        continue;
-      }
+        if (stepError || !nextStep) throw new Error('Failed to fetch step 1');
 
-      // Fetch Step 1
-      const { data: nextStep, error: stepError } = await supabase
-        .from('sequence_steps')
-        .select('*')
-        .eq('sequence_id', targetSeq.sequence_id)
-        .eq('step_number', 1)
-        .single();
-
-      if (stepError || !nextStep) {
-        logs.push(`Failed to fetch step 1 for ${lead.company_name}`);
-        continue;
-      }
-
-      // Draft the first touch
-      const prompt = `You are a high-end sales copywriter drafting the first cold outreach email for a local business owner.
+        // Draft the first touch
+        const prompt = `You are a high-end sales copywriter drafting the first cold outreach email for a local business owner.
 Target Profile:
 - Company Name: ${lead.company_name}
 - Contact Person: ${lead.contact_name} (Title: ${lead.contact_title || 'Owner/Founder'})
@@ -99,7 +80,6 @@ Return a JSON object with:
   "body": "The drafted message body including subject line"
 }`;
 
-      try {
         const response = await callLLM({
           task: 'Draft initial outreach touchpoint',
           prompt,
@@ -109,6 +89,18 @@ Return a JSON object with:
         const draftText = response?.body || '';
         
         if (!draftText) throw new Error('LLM returned empty draft body');
+
+        // ATOMIC STAGING: Only create the sequence if the draft succeeded
+        const { error: insertSeqError } = await supabase
+          .from('target_sequences')
+          .insert({
+            target_id: lead.id,
+            sequence_id: 'd3b07384-d113-4c9b-8c5d-2b47d3d19117',
+            current_step: 0,
+            status: 'pending_enrollment'
+          });
+
+        if (insertSeqError) throw insertSeqError;
 
         // Insert into touch_queue as pending_approval
         const { error: queueError } = await supabase
@@ -129,7 +121,7 @@ Return a JSON object with:
         stagedCount++;
 
       } catch (err: any) {
-        logs.push(`Failed drafting Step 1 for ${lead.company_name}: ${err.message}`);
+        logs.push(`Failed staging for ${lead.company_name}: ${err.message}`);
       }
     }
 
