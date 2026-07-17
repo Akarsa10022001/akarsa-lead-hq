@@ -34,24 +34,28 @@ alter table leads add column if not exists is_eu_lead boolean
   ) stored;
 
 -- 3. Inversion Disqualification Logic
-alter table leads add column if not exists is_disqualified boolean
+alter table leads drop column if exists is_disqualified;
+alter table leads add column is_disqualified boolean
   generated always as (
-    -- 1. Unreachable (email is null OR matches generic pattern OR fails validity regex)
-    (email is null or 
-     (email ~* '^(info|contact|hello|admin|reservations?|bookings?|groups|sales|enquir|restaurants?|catering|membership|reception|office|team|support)@') or 
-     not (email ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$' and length(email) < 100 and email !~ '[0-9]{6,}')) or
-    -- 2. No digital footprint at all
-    (not has_website and (social_links is null or social_links::text = '{}') and not whatsapp_valid) or
-    -- 3. Competitors
-    (industry ilike '%digital marketing%' or industry ilike '%social media%' or industry ilike '%advertising%' or industry ilike '%seo%' or industry ilike '%pr %' or industry ilike '%branding%' or industry ilike '%web%design%' or industry ilike '%creative agency%' or industry ilike '%marketing consultant%') or
-    -- 4. Structural non-buyers
-    (industry ilike '%school%' or industry ilike '%college%' or industry ilike '%university%' or industry ilike '%government%' or industry ilike '%municipal%' or industry ilike '%hospital%') or
-    -- 5. Low-spend verticals
-    (industry ilike '%manufacturing%' or industry ilike '%energy%' or industry ilike '%utilities%' or industry ilike '%transportation%' or industry ilike '%logistics%' or industry ilike '%industrial%')
+    COALESCE(
+      -- 1. Unreachable (email is null OR matches generic pattern OR fails validity regex)
+      (email is null or 
+       (email ~* '^(info|contact|hello|admin|reservations?|bookings?|groups|sales|enquir|restaurants?|catering|membership|reception|office|team|support)@') or 
+       not (email ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$' and length(email) < 100 and email !~ '[0-9]{6,}')) or
+      -- 2. No digital footprint at all
+      (not coalesce(has_website, false) and (social_links is null or social_links::text = '{}') and not coalesce(whatsapp_valid, false)) or
+      -- 3. Competitors
+      (industry ilike '%digital marketing%' or industry ilike '%social media%' or industry ilike '%advertising%' or industry ilike '%seo%' or industry ilike '%pr %' or industry ilike '%branding%' or industry ilike '%web%design%' or industry ilike '%creative agency%' or industry ilike '%marketing consultant%') or
+      -- 4. Structural non-buyers
+      (industry ilike '%school%' or industry ilike '%college%' or industry ilike '%university%' or industry ilike '%government%' or industry ilike '%municipal%' or industry ilike '%hospital%') or
+      -- 5. Low-spend verticals
+      (industry ilike '%manufacturing%' or industry ilike '%energy%' or industry ilike '%utilities%' or industry ilike '%transportation%' or industry ilike '%logistics%' or industry ilike '%industrial%'),
+      false
+    )
   ) stored;
 
 -- 4. Close Score View (The Scoring Engine)
-create or replace view lead_scores as
+create or replace view close_score as
 select 
   id as lead_id,
   (
@@ -81,7 +85,7 @@ select l.id, l.company_name, l.contact_name, l.contact_title, l.score_grade, l.e
        l.is_personal_email, l.industry, l.domain, l.social_links, l.is_eu_lead, s.close_score,
        l.runs_ads, l.has_pixel, l.ig_active_low_engagement, l.recent_reviews, l.weak_website
 from leads l
-join lead_scores s on l.id = s.lead_id
+join close_score s on l.id = s.lead_id
 where l.email_verified = true
   and l.email_is_valid = true
   and l.is_generic_email = false
