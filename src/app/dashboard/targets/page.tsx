@@ -24,6 +24,26 @@ export default function TargetsManager() {
   
   // Validation error
   const [validationError, setValidationError] = useState("");
+  const [promoting, setPromoting] = useState(false);
+
+  const handleAutoPromote = async () => {
+    setPromoting(true);
+    try {
+      const res = await fetch("/api/cron/enroll-leads", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || "Enrollment run complete.");
+        fetchTargets();
+      } else {
+        alert(`Enrollment failed: ${data.error || "Unknown error"}`);
+      }
+    } catch (err: any) {
+      alert(`Error running enrollment: ${err.message}`);
+    } finally {
+      setPromoting(false);
+    }
+  };
+
   const triggerEnrollment = async () => {
     try {
       await fetch("/api/cron/enroll-leads", { method: "POST" });
@@ -40,10 +60,11 @@ export default function TargetsManager() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('target_sequences')
+        .from('leads')
         .select(`
           *,
-          leads(*),
+          target_sequences!inner(*),
+          consents(*),
           conversions(*)
         `)
         .order('created_at', { ascending: false });
@@ -189,6 +210,13 @@ export default function TargetsManager() {
               </p>
             </div>
             <div className="flex gap-3">
+              <button
+                onClick={handleAutoPromote}
+                disabled={promoting}
+                className="px-4 py-2 border border-border bg-background hover:bg-secondary transition-all font-bold text-xs uppercase tracking-widest cursor-pointer disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                <Target className="w-4 h-4 text-primary" /> {promoting ? "Enrolling..." : "Auto-Enroll Top Leads"}
+              </button>
               <button
                 onClick={() => setShowForm(!showForm)}
                 className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer inline-flex items-center gap-2 border border-primary"
@@ -365,7 +393,7 @@ export default function TargetsManager() {
 
                       <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground font-mono">
                         {item.email && <div className="flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> {item.email}</div>}
-                        {item.phone && <div className="flex items-center gap-1"><Send className="w-3.5 h-3.5" /> {item.phone}</div>}
+                        {item.phone_e164 && <div className="flex items-center gap-1"><Send className="w-3.5 h-3.5" /> {item.phone_e164}</div>}
                       </div>
                     </div>
 
@@ -379,7 +407,7 @@ export default function TargetsManager() {
                       </div>
 
                       {/* WhatsApp Consent Option */}
-                      {item.phone && (
+                      {item.phone_e164 && (
                         <div className="flex flex-col items-start md:items-end">
                           <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">WA Consent</span>
                           <button
