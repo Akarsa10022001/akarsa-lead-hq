@@ -36,8 +36,10 @@ alter table leads add column if not exists is_eu_lead boolean
 -- 3. Inversion Disqualification Logic
 alter table leads add column if not exists is_disqualified boolean
   generated always as (
-    -- 1. Unreachable
-    (email is null or is_generic_email or not email_is_valid) or
+    -- 1. Unreachable (email is null OR matches generic pattern OR fails validity regex)
+    (email is null or 
+     (email ~* '^(info|contact|hello|admin|reservations?|bookings?|groups|sales|enquir|restaurants?|catering|membership|reception|office|team|support)@') or 
+     not (email ~* '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$' and length(email) < 100 and email !~ '[0-9]{6,}')) or
     -- 2. No digital footprint at all
     (not has_website and (social_links is null or social_links::text = '{}') and not whatsapp_valid) or
     -- 3. Competitors
