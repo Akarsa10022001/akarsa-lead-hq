@@ -3,7 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
-import { Activity, Mail, MessageCircle, Clock, CheckCircle2, AlertCircle, Send, ExternalLink } from "lucide-react";
+import { Activity, Mail, MessageCircle, Clock, CheckCircle2, AlertCircle, Phone, Linkedin } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -13,25 +13,18 @@ export default function ActivityLog() {
 
   async function fetchActivity() {
     const { data, error } = await supabase
-      .from('outreach_messages')
+      .from('touches')
       .select(`
-        id,
-        draft_content,
-        sent_at,
-        status,
-        channel,
-        outreach_sequences!inner (
-          lead_id,
-          leads!inner (
-            company_name,
-            contact_name,
-            phone,
-            email
-          )
+        *,
+        leads!inner (
+          company_name,
+          contact_name,
+          phone_e164,
+          email
         )
       `)
-      .neq('status', 'received')
-      .order('sent_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (!error && data) {
       setMessages(data);
@@ -43,32 +36,6 @@ export default function ActivityLog() {
 
   useEffect(() => {
     fetchActivity();
-    
-    const subscription = supabase
-      .channel('public:activity_log')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'outreach_messages'
-      }, (payload) => {
-        if (payload.new.status !== 'received') {
-          fetchActivity();
-        }
-      })
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'outreach_messages'
-      }, (payload) => {
-        if (payload.new.status !== 'received') {
-          fetchActivity();
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
   }, []);
 
   const getStatusIcon = (status: string) => {
@@ -76,7 +43,7 @@ export default function ActivityLog() {
     switch(s) {
       case 'sent': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case 'failed': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      case 'pending': case 'ready_to_send': return <Clock className="w-4 h-4 text-yellow-500" />;
+      case 'skipped': return <Clock className="w-4 h-4 text-yellow-500" />;
       default: return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     }
   };
@@ -86,82 +53,45 @@ export default function ActivityLog() {
     switch(s) {
       case 'sent': return 'text-green-500';
       case 'failed': return 'text-red-500';
-      case 'pending': case 'ready_to_send': return 'text-yellow-500';
+      case 'skipped': return 'text-yellow-500';
       default: return 'text-muted-foreground';
     }
   };
 
-  const handleSendWhatsApp = async (msg: any) => {
-    const phone = msg.outreach_sequences?.leads?.phone;
-    if (!phone) return;
-
-    // Clean phone number: remove spaces, dashes, keep + and digits
-    const cleanPhone = phone.replace(/[\s\-()]/g, '').replace(/^\+/, '');
-    const message = msg.draft_content || '';
-    
-    // Open wa.me link
-    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    window.open(waUrl, '_blank');
-
-    // Mark as sent in database
-    await supabase
-      .from('outreach_messages')
-      .update({ status: 'sent', sent_at: new Date().toISOString() })
-      .eq('id', msg.id);
-
-    // Also update the lead status to Contacted
-    const leadId = msg.outreach_sequences?.lead_id;
-    if (leadId) {
-      await supabase.from('leads').update({ status: 'Contacted' }).eq('id', leadId);
+  const getChannelIcon = (channel: string) => {
+    switch(channel.toLowerCase()) {
+      case 'whatsapp': return <MessageCircle className="w-3 h-3" />;
+      case 'email': return <Mail className="w-3 h-3" />;
+      case 'phone': return <Phone className="w-3 h-3" />;
+      case 'linkedin': return <Linkedin className="w-3 h-3" />;
+      default: return <Activity className="w-3 h-3" />;
     }
-
-    // Refresh the list
-    fetchActivity();
   };
 
-  const handleSendEmail = async (msg: any) => {
-    const email = msg.outreach_sequences?.leads?.email;
-    if (!email) return;
-
-    const message = msg.draft_content || '';
-    const subject = 'Quick question about your business';
-    
-    // Open mailto link
-    window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`, '_blank');
-
-    // Mark as sent
-    await supabase
-      .from('outreach_messages')
-      .update({ status: 'sent', sent_at: new Date().toISOString() })
-      .eq('id', msg.id);
-
-    const leadId = msg.outreach_sequences?.lead_id;
-    if (leadId) {
-      await supabase.from('leads').update({ status: 'Contacted' }).eq('id', leadId);
+  const getChannelStyle = (channel: string) => {
+    switch(channel.toLowerCase()) {
+      case 'whatsapp': return 'bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20';
+      case 'email': return 'bg-blue-500/10 text-blue-500 border border-blue-500/20';
+      case 'phone': return 'bg-orange-500/10 text-orange-500 border border-orange-500/20';
+      case 'linkedin': return 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20';
+      default: return 'bg-secondary text-foreground border border-border';
     }
-
-    fetchActivity();
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex h-screen bg-background text-foreground font-body">
       <Sidebar />
-      <Header />
-      
-      <main className="md:ml-72 p-4 md:p-8">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-6xl mx-auto"
-        >
+      <main className="flex-1 flex flex-col md:pl-72 h-screen overflow-y-auto">
+        <Header />
+        
+        <div className="p-6 max-w-6xl w-full mx-auto space-y-6">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-3 bg-primary/10 rounded-xl">
               <Activity className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Activity Log</h1>
-              <p className="text-muted-foreground mt-1">Click <strong>Send</strong> to open WhatsApp/Email with the message pre-filled.</p>
+              <h1 className="text-3xl font-bold font-heading uppercase tracking-wider">Activity Log</h1>
+              <p className="text-muted-foreground mt-1">A historical audit trail of every touchpoint successfully dispatched or failed.</p>
             </div>
           </div>
 
@@ -173,15 +103,15 @@ export default function ActivityLog() {
                     <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Timestamp</th>
                     <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Target</th>
                     <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Channel</th>
+                    <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Direction</th>
                     <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                    <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Message Snippet</th>
-                    <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Action</th>
+                    <th className="p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes / Summary</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="p-12 text-center text-muted-foreground">Fetching server logs...</td>
+                      <td colSpan={6} className="p-12 text-center text-muted-foreground font-mono">Fetching server logs...</td>
                     </tr>
                   ) : messages.length === 0 ? (
                     <tr>
@@ -192,64 +122,41 @@ export default function ActivityLog() {
                     </tr>
                   ) : (
                     messages.map((msg, idx) => {
-                      const isReady = (msg.status || '').toLowerCase() === 'ready_to_send' || (msg.status || '').toLowerCase() === 'pending';
-                      const isSent = (msg.status || '').toLowerCase() === 'sent';
-                      const phone = msg.outreach_sequences?.leads?.phone;
-                      const email = msg.outreach_sequences?.leads?.email;
-                      const canSend = isReady && (msg.channel === 'whatsapp' ? !!phone : !!email);
-
                       return (
                         <motion.tr 
                           key={msg.id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: idx * 0.03 }}
-                          className={`transition-colors group ${isReady ? 'hover:bg-primary/5 cursor-pointer' : 'hover:bg-secondary/20'}`}
+                          className="transition-colors hover:bg-secondary/20"
                         >
-                          <td className="p-4 text-sm text-muted-foreground whitespace-nowrap">
-                            {new Date(msg.sent_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
+                          <td className="p-4 text-sm text-muted-foreground whitespace-nowrap font-mono text-xs">
+                            {new Date(msg.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
                           </td>
                           <td className="p-4">
-                            <div className="font-bold">{msg.outreach_sequences.leads.company_name}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                              {msg.channel === 'whatsapp' ? phone : email || 'Unknown'}
+                            <div className="font-bold uppercase font-heading">{msg.leads?.company_name}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {msg.leads?.contact_name}
                             </div>
                           </td>
                           <td className="p-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${msg.channel === 'whatsapp' ? 'bg-[#25D366]/10 text-[#25D366] border border-[#25D366]/20' : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'}`}>
-                              {msg.channel === 'whatsapp' ? <MessageCircle className="w-3 h-3" /> : <Mail className="w-3 h-3" />}
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getChannelStyle(msg.channel)}`}>
+                              {getChannelIcon(msg.channel)}
                               {msg.channel}
                             </span>
                           </td>
                           <td className="p-4">
-                            <span className={`flex items-center gap-1.5 text-sm font-medium ${getStatusColor(msg.status)}`}>
-                              {getStatusIcon(msg.status)} {(msg.status || '').toLowerCase() === 'ready_to_send' ? 'Ready' : msg.status}
+                            <span className="text-xs uppercase font-bold tracking-widest text-muted-foreground">
+                              {msg.direction}
                             </span>
                           </td>
-                          <td className="p-4 text-sm text-muted-foreground truncate max-w-xs hidden md:table-cell">
-                            {msg.draft_content.substring(0, 60)}...
-                          </td>
                           <td className="p-4">
-                            {canSend ? (
-                              <button
-                                onClick={() => msg.channel === 'whatsapp' ? handleSendWhatsApp(msg) : handleSendEmail(msg)}
-                                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-                                  msg.channel === 'whatsapp' 
-                                    ? 'bg-[#25D366] text-white hover:bg-[#20bd5a] hover:shadow-lg hover:shadow-[#25D366]/30' 
-                                    : 'bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-500/30'
-                                }`}
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                                Send
-                              </button>
-                            ) : isSent ? (
-                              <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider bg-green-500/10 text-green-500 border border-green-500/20">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                Sent
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">No contact</span>
-                            )}
+                            <span className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest ${getStatusColor(msg.send_status)}`}>
+                              {getStatusIcon(msg.send_status)} {msg.send_status || 'Sent'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-xs text-muted-foreground max-w-sm truncate font-mono">
+                            {msg.notes}
                           </td>
                         </motion.tr>
                       );
@@ -259,7 +166,7 @@ export default function ActivityLog() {
               </table>
             </div>
           </div>
-        </motion.div>
+        </div>
       </main>
     </div>
   );
