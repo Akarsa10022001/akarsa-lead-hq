@@ -3,7 +3,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion } from "framer-motion";
-import { Activity, Mail, MessageCircle, Clock, CheckCircle2, AlertCircle, Phone, Linkedin } from "lucide-react";
+import { Activity, Mail, MessageCircle, Clock, CheckCircle2, AlertCircle, Phone, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -63,7 +63,7 @@ export default function ActivityLog() {
       case 'whatsapp': return <MessageCircle className="w-3 h-3" />;
       case 'email': return <Mail className="w-3 h-3" />;
       case 'phone': return <Phone className="w-3 h-3" />;
-      case 'linkedin': return <Linkedin className="w-3 h-3" />;
+      case 'linkedin': return <Briefcase className="w-3 h-3" />;
       default: return <Activity className="w-3 h-3" />;
     }
   };
