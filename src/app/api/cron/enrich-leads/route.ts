@@ -200,11 +200,11 @@ async function discoverOwnerEmail(
 // --- MAIN ENRICHMENT CRON ---
 export async function GET(request: Request) {
   const startTime = Date.now();
-  const MAX_RUNTIME = 8000; // 8s hard cap (leave 2s buffer for Vercel's 10s limit)
+  const MAX_RUNTIME = 8000;
   const BATCH_SIZE = 5;
 
   const url = new URL(request.url);
-  const mode = url.searchParams.get('mode') || 'intent'; // 'intent' or 'email'
+  const mode = url.searchParams.get('mode') || 'intent';
 
   try {
     const results = {
@@ -219,12 +219,12 @@ export async function GET(request: Request) {
 
     if (mode === 'intent') {
       // PASS 1: Intent signal enrichment for non-disqualified leads
+      // Use enriched_at IS NULL to skip already-processed leads
       const { data: intentLeads, error: e1 } = await supabase
         .from('leads')
         .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified, runs_ads, has_pixel')
         .eq('is_disqualified', false)
-        .eq('runs_ads', false)
-        .eq('has_pixel', false)
+        .is('enriched_at', null)
         .not('domain', 'is', null)
         .limit(BATCH_SIZE);
 
@@ -246,13 +246,13 @@ export async function GET(request: Request) {
           update.has_pixel = signals.has_pixel;
           update.runs_ads = signals.runs_ads;
           update.weak_website = signals.weak_website;
+          update.enriched_at = new Date().toISOString(); // Mark as processed
 
           if (signals.has_pixel) results.pixels_found++;
           if (signals.runs_ads) results.ads_found++;
           if (signals.weak_website) results.weak_sites++;
           results.intent_checked++;
 
-          // Also try email enrichment if this lead has a generic/missing email
           if (!lead.email || lead.is_generic_email) {
             const ownerEmail = await discoverOwnerEmail(bareDomain, lead.contact_name, lead.social_links);
             if (ownerEmail) {
@@ -261,10 +261,8 @@ export async function GET(request: Request) {
             }
           }
 
-          if (Object.keys(update).length > 0) {
-            const { error: updateErr } = await supabase.from('leads').update(update).eq('id', lead.id);
-            if (updateErr) results.errors++;
-          }
+          const { error: updateErr } = await supabase.from('leads').update(update).eq('id', lead.id);
+          if (updateErr) results.errors++;
         } catch {
           results.errors++;
         }
@@ -272,12 +270,17 @@ export async function GET(request: Request) {
 
     } else if (mode === 'email') {
       // PASS 2: Owner-email recovery for DISQUALIFIED leads
-      // These are the ~522 with generic emails + ~186 with no email.
-      // If we find a real owner email, is_disqualified will auto-flip to false.
+      // Only target leads disqualified due to BAD EMAIL (not competitors/non-buyers).
+      // Exclude competitor and structural non-buyer industries since finding an email won't help.
+      const COMPETITOR_INDUSTRIES = ['digital marketing', 'social media', 'advertising', 'seo', 'branding', 'web design', 'creative agency', 'marketing consultant'];
+      const NONBUYER_INDUSTRIES = ['school', 'college', 'university', 'government', 'municipal', 'hospital'];
+      const LOWSPEND_INDUSTRIES = ['manufacturing', 'energy', 'utilities', 'transportation', 'logistics', 'industrial'];
+
       const { data: emailLeads, error: e2 } = await supabase
         .from('leads')
         .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified')
         .eq('is_disqualified', true)
+        .is('enriched_at', null)
         .not('domain', 'is', null)
         .or('email.is.null,is_generic_email.eq.true')
         .limit(BATCH_SIZE);
@@ -288,7 +291,14 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, mode, message: 'No disqualified leads with recoverable email.', results });
       }
 
-      for (const lead of emailLeads) {
+      // Filter out competitors/non-buyers in code since Supabase doesn't support NOT ILIKE chains
+      const recoverable = emailLeads.filter(lead => {
+        const ind = (lead.industry || '').toLowerCase();
+        const isCompetitor = [...COMPETITOR_INDUSTRIES, ...NONBUYER_INDUSTRIES, ...LOWSPEND_INDUSTRIES].some(kw => ind.includes(kw));
+        return !isCompetitor;
+      });
+
+      for (const lead of recoverable) {
         if (Date.now() - startTime > MAX_RUNTIME) break;
 
         try {
@@ -296,18 +306,25 @@ export async function GET(request: Request) {
           results.domains_processed.push(bareDomain);
 
           const ownerEmail = await discoverOwnerEmail(bareDomain, lead.contact_name, lead.social_links);
+          const update: Record<string, any> = { enriched_at: new Date().toISOString() };
+          
           if (ownerEmail) {
-            const { error: updateErr } = await supabase
-              .from('leads')
-              .update({ email: ownerEmail })
-              .eq('id', lead.id);
-            if (!updateErr) results.emails_found++;
-            else results.errors++;
+            update.email = ownerEmail;
+            results.emails_found++;
           }
+          
+          const { error: updateErr } = await supabase.from('leads').update(update).eq('id', lead.id);
+          if (updateErr) results.errors++;
           results.intent_checked++;
         } catch {
           results.errors++;
         }
+      }
+
+      // Also mark the filtered-out competitor leads as enriched so they don't reappear
+      const skipped = emailLeads.filter(lead => !recoverable.includes(lead));
+      for (const lead of skipped) {
+        await supabase.from('leads').update({ enriched_at: new Date().toISOString() }).eq('id', lead.id);
       }
     }
 
@@ -323,4 +340,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message, runtime_ms: Date.now() - startTime }, { status: 500 });
   }
 }
-
