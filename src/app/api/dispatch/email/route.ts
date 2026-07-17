@@ -69,12 +69,22 @@ export async function POST(req: Request) {
     // Convert newlines to html line breaks
     const htmlBody = body.replace(/\n/g, '<br/>');
 
-    // 4. Send email using Resend
+    // 4. Handle Resend Sandbox Mode (Free Tier)
+    let finalToEmail = target.email;
+    let finalSubject = subject;
+
+    if (senderEmail === 'onboarding@resend.dev') {
+      // In Resend Sandbox, you can only send to your own registered email address
+      finalToEmail = 'beakarsa@gmail.com';
+      finalSubject = `[TEST FOR: ${target.email}] ${subject}`;
+    }
+
+    // 5. Send email using Resend
     const resend = new Resend(apiKey);
     const { data: resendResult, error: resendError } = await resend.emails.send({
       from: `Akarsa <${senderEmail}>`,
-      to: target.email,
-      subject: subject,
+      to: finalToEmail,
+      subject: finalSubject,
       html: `<div style="font-family: sans-serif; font-size: 15px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
     });
 
