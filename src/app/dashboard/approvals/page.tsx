@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Check, X, Clipboard, Edit2, Play, Flame, AlertCircle, FileText, Send, CheckCircle } from "lucide-react";
+import { Check, X, Clipboard, Edit2, Play, Flame, AlertCircle, FileText, Send, CheckCircle, Mail } from "lucide-react";
 
 export default function ApprovalsQueue() {
   const [queue, setQueue] = useState<any[]>([]);
@@ -148,6 +148,24 @@ export default function ApprovalsQueue() {
     }
   };
 
+  const handleSendViaMailApp = async (item: any) => {
+    let subject = "Outreach from Akarsa";
+    let body = item.draft_body || "";
+    const subjectRegex = /^Subject:\s*(.+)$/im;
+    const match = body.match(subjectRegex);
+    if (match) {
+      subject = match[1].trim();
+      body = body.replace(subjectRegex, '').trim();
+    }
+    
+    // Construct mailto link
+    const mailtoUrl = `mailto:${item.leads.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoUrl, '_blank');
+    
+    // Automatically mark as sent and clear from queue
+    await handleMarkSent(item.id);
+  };
+
   return (
     <div className="flex h-screen bg-background text-foreground font-body">
       <Sidebar />
@@ -238,6 +256,14 @@ export default function ApprovalsQueue() {
                           title="Skip this step"
                         >
                           <X className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleSendViaMailApp(item)}
+                          disabled={actioningId === item.id}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white font-bold text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50 border border-indigo-500/20"
+                          title="Open in your local mail client (Gmail, Apple Mail, etc) and mark as sent"
+                        >
+                          <Mail className="w-3.5 h-3.5" /> Send via Mail App
                         </button>
                         <button
                           onClick={() => handleApproveAndSend(item)}
