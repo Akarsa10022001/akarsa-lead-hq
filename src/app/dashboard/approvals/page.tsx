@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Check, X, Clipboard, Edit2, Play, Flame, AlertCircle, FileText, Send, CheckCircle, Mail } from "lucide-react";
+import { Check, X, Clipboard, Edit2, Play, Flame, AlertCircle, FileText, Send, CheckCircle, Mail, Phone, MessageCircle } from "lucide-react";
 
 export default function ApprovalsQueue() {
   const [queue, setQueue] = useState<any[]>([]);
@@ -257,21 +257,49 @@ export default function ApprovalsQueue() {
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => handleSendViaMailApp(item)}
-                          disabled={actioningId === item.id}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white font-bold text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50 border border-indigo-500/20"
-                          title="Open in your local mail client (Gmail, Apple Mail, etc) and mark as sent"
-                        >
-                          <Mail className="w-3.5 h-3.5" /> Send via Mail App
-                        </button>
-                        <button
-                          onClick={() => handleApproveAndSend(item)}
-                          disabled={actioningId === item.id}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer disabled:opacity-50 border border-primary"
-                        >
-                          <Send className="w-3.5 h-3.5" /> Approve & Send
-                        </button>
+                        {item.channel === 'email' && (
+                          <>
+                            <button
+                              onClick={() => handleSendViaMailApp(item)}
+                              disabled={actioningId === item.id}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white font-bold text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50 border border-indigo-500/20"
+                              title="Open in your local mail client (Gmail, Apple Mail, etc) and mark as sent"
+                            >
+                              <Mail className="w-3.5 h-3.5" /> Send via Mail App
+                            </button>
+                            <button
+                              onClick={() => handleApproveAndSend(item)}
+                              disabled={actioningId === item.id}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer disabled:opacity-50 border border-primary"
+                            >
+                              <Send className="w-3.5 h-3.5" /> Approve & Send
+                            </button>
+                          </>
+                        )}
+
+                        {item.channel === 'whatsapp' && (
+                          <button
+                            onClick={() => {
+                              const phoneStr = item.leads.phone_e164?.replace(/\D/g, '') || item.leads.phone?.replace(/\D/g, '');
+                              window.open(`https://wa.me/${phoneStr}?text=${encodeURIComponent(item.draft_body)}`, '_blank');
+                              handleMarkSent(item.id);
+                            }}
+                            disabled={actioningId === item.id}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-white font-bold text-xs uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50 border border-[#25D366]/20 mr-2"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> Open in WhatsApp
+                          </button>
+                        )}
+
+                        {item.channel !== 'email' && (
+                          <button
+                            onClick={() => handleMarkSent(item.id)}
+                            disabled={actioningId === item.id}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest hover:bg-primary/95 transition-all cursor-pointer disabled:opacity-50 border border-primary"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" /> Mark as Done
+                          </button>
+                        )}
                       </div>
                     </div>
 
