@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import ARIMA from 'arima';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -8,72 +7,57 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // Fetch all leads to compute daily counts
-    const { data: leads, error } = await supabase
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Fetch leads created in the last 7 days
+    const { data: recentLeads, error: recentErr } = await supabase
       .from('leads')
       .select('created_at')
-      .order('created_at', { ascending: true });
+      .gte('created_at', sevenDaysAgo.toISOString());
 
-    if (error) throw new Error(error.message);
-    if (!leads || leads.length === 0) {
+    if (recentErr) throw new Error(recentErr.message);
+
+    // Fetch earliest lead date to check total history span
+    const { data: oldestLead } = await supabase
+      .from('leads')
+      .select('created_at')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!oldestLead) {
       return NextResponse.json({ historyDays: 0, forecast: null });
     }
 
-    // Group by YYYY-MM-DD
-    const dailyCounts: Record<string, number> = {};
-    leads.forEach(lead => {
-      const date = new Date(lead.created_at).toISOString().split('T')[0];
-      dailyCounts[date] = (dailyCounts[date] || 0) + 1;
-    });
+    const firstDate = new Date(oldestLead.created_at);
+    const historyDays = Math.ceil((Date.now() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    const sortedDates = Object.keys(dailyCounts).sort();
-    const historyDays = sortedDates.length;
-
-    // Fill in missing days with 0 (optional, but good for time series)
-    if (historyDays > 0) {
-      const firstDate = new Date(sortedDates[0]);
-      const lastDate = new Date(sortedDates[sortedDates.length - 1]);
-      for (let d = new Date(firstDate); d <= lastDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        if (!dailyCounts[dateStr]) dailyCounts[dateStr] = 0;
-      }
+    if (historyDays < 7) {
+      return NextResponse.json({ historyDays, forecast: null });
     }
 
-    const completeDates = Object.keys(dailyCounts).sort();
-    const tsData = completeDates.map(date => dailyCounts[date]);
-    const actualHistoryDays = tsData.length;
-
-    if (actualHistoryDays < 7) {
-      return NextResponse.json({ historyDays: actualHistoryDays, forecast: null });
-    }
-
-    // Run ARIMA(1,1,1)
-    const arima = new ARIMA({ p: 1, d: 1, q: 1, verbose: false }).train(tsData);
-    const [predValues] = arima.predict(30);
+    const leads7dCount = recentLeads?.length || 0;
+    const dailyAvg = leads7dCount / 7;
+    const runRate30d = Math.round(dailyAvg * 30);
 
     const forecastData = [];
-    let predictedTotal = 0;
-
-    // Start dates from tomorrow
-    const lastDate = new Date(completeDates[completeDates.length - 1]);
+    const today = new Date();
     for (let i = 0; i < 30; i++) {
-      const nextDate = new Date(lastDate);
+      const nextDate = new Date(today);
       nextDate.setDate(nextDate.getDate() + i + 1);
-      const predictedLeads = Math.max(0, Math.round(predValues[i] || 0));
-      predictedTotal += predictedLeads;
-      
       forecastData.push({
         date: nextDate.toISOString().split('T')[0],
-        predicted_leads: predictedLeads
+        predicted_leads: Math.round(dailyAvg)
       });
     }
 
     return NextResponse.json({
-      historyDays: actualHistoryDays,
+      historyDays,
       forecast: {
         summary: {
-          predicted_total_30d: predictedTotal,
-          predicted_avg_daily: Math.round(predictedTotal / 30)
+          predicted_total_30d: runRate30d,
+          predicted_avg_daily: Math.round(dailyAvg)
         },
         forecast: forecastData
       }

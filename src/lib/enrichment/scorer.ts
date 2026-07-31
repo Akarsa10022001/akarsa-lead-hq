@@ -82,193 +82,56 @@ export interface IntelScore {
 }
 
 export function calculateIntelScore(lead: any): IntelScore {
-  let contact = 0;
-  let digital = 0;
-  let intent = 0;
-  let fit = 0;
+  let score = 0;
   const factors: Record<string, number> = {};
 
-  // ========================================
-  // DIMENSION 1: CONTACT (Can we reach them?)
-  // ========================================
-  if (lead.email_verified) {
-    contact += 10;
-    factors.verified_email = 10;
-  }
-  
-  if (lead.email_quality === 'named') {
-    contact += 5;
-    factors.named_email = 5;
-  } else if (lead.email_quality === 'role') {
-    contact += 2;
-    factors.role_email = 2;
+  // 1. Runs Meta / Google Ads (+35)
+  if (lead.runs_ads || lead.has_active_ads) {
+    score += 35;
+    factors.runs_ads = 35;
   }
 
-  if (lead.phone_e164) {
-    contact += 10;
-    factors.phone_e164 = 10;
-  } else if (lead.phone) {
-    contact += 3;
-    factors.phone_raw = 3;
+  // 2. Has Meta Pixel installed (+25)
+  if (lead.has_pixel) {
+    score += 25;
+    factors.has_pixel = 25;
   }
 
-  if (lead.contact_name) {
-    contact += 5;
-    factors.contact_name = 5;
+  // 3. Active Instagram with low engagement (+20)
+  if (lead.ig_active_low_engagement) {
+    score += 20;
+    factors.ig_active_low_engagement = 20;
   }
 
-  // Decision-maker from social intel
-  if (lead.decision_maker_name) {
-    contact += 3;
-    factors.decision_maker = 3;
+  // 4. Recent negative reviews with active owner response (+15)
+  if (lead.recent_reviews || (lead.rating && lead.rating < 3.5 && lead.review_count > 10)) {
+    score += 15;
+    factors.recent_reviews = 15;
   }
 
-  // ========================================
-  // DIMENSION 2: DIGITAL MATURITY
-  // ========================================
-  if (lead.has_website) {
-    digital += 5;
-    factors.has_website = 5;
+  // 5. Weak / slow website (+10)
+  if (lead.weak_website || lead.website_status === 'weak' || lead.website_status === 'slow') {
+    score += 10;
+    factors.weak_website = 10;
   }
 
-  if (lead.website_status === 'live') {
-    digital += 3;
-    factors.website_live = 3;
-  }
-
-  // Social media presence
-  const socialProfileCount = lead.social_profile_count || 0;
-  if (socialProfileCount >= 1) {
-    digital += 5;
-    factors.has_social = 5;
-  }
-  if (socialProfileCount >= 3) {
-    digital += 3;
-    factors.multi_social = 3;
-  }
-
-  // Follower count
-  const followers = lead.total_followers || 0;
-  if (followers >= 10000) {
-    digital += 7;
-    factors.followers_10k = 7;
-  } else if (followers >= 1000) {
-    digital += 4;
-    factors.followers_1k = 4;
-  }
-
-  // Domain age
-  if (lead.domain_age_years) {
-    if (lead.domain_age_years >= 3) {
-      digital += 5;
-      factors.established_domain = 5;
-    } else if (lead.domain_age_years >= 1) {
-      digital += 2;
-      factors.newer_domain = 2;
-    }
-  }
-
-  // Running paid ads
-  if (lead.has_active_ads) {
-    digital += 5;
-    factors.active_ads = 5;
-  }
-
-  // ========================================
-  // DIMENSION 3: INTENT (Buying signals)
-  // ========================================
-  // Intent score is calculated by the Intent Detector (Layer 9) and passed in directly
-  intent = lead.intent_score || 0;
-  if (intent > 0) factors.intent_signals = intent;
-
-  // Additional intent from review analysis
-  if (lead.rating && lead.rating < 3.5 && lead.review_count > 10) {
-    intent += 5;
-    factors.low_rating_intent = 5;
-  }
-
-  // No website but has social = needs web services
-  if (!lead.has_website && socialProfileCount > 0) {
-    intent += 5;
-    factors.needs_website = 5;
-  }
-
-  // ========================================
-  // DIMENSION 4: FIT (ICP match)
-  // ========================================
-  // Agency-specific fit (for Akarsa One)
-  if (lead.manages_multiple_clients) {
-    fit += 15;
-    factors.multi_client = 15;
-  }
-  
-  if (lead.platforms_managed) {
-    const platformCount = lead.platforms_managed.split(',').length;
-    if (platformCount >= 3) {
-      fit += 5;
-      factors.multi_platform = 5;
-    }
-  }
-  
-  if (lead.reporting_analytics_offering) {
-    fit += 10;
-    factors.offers_reporting = 10;
-  }
-  
-  if (lead.team_size_or_client_count) {
-    fit += 5;
-    factors.team_size_stated = 5;
-  }
-
-  // General business fit (for Akarsa Studio)
-  if (lead.rating && lead.rating >= 4.0) {
-    fit += 3;
-    factors.good_reputation = 3;
-  }
-
-  if (lead.review_count && lead.review_count >= 50) {
-    fit += 3;
-    factors.established_business = 3;
-  }
-
-  // ========================================
-  // NORMALIZE & GRADE
-  // ========================================
-  const norm_contact = Math.min(contact, 25);
-  const norm_digital = Math.min(digital, 25);
-  const norm_intent = Math.min(intent, 25);
-  const norm_fit = Math.min(fit, 25);
-  const total = norm_contact + norm_digital + norm_intent + norm_fit;
-
-  const grade = total >= 80 ? 'A' : total >= 60 ? 'B' : total >= 40 ? 'C' : 'D';
+  // Cap max score at 100
+  const total = Math.min(score, 100);
+  const grade = total >= 80 ? 'A' : (total >= 65 ? 'B' : (total >= 40 ? 'C' : 'D'));
   const gradeColors: Record<string, string> = {
-    'A': '#22c55e', // green
-    'B': '#3b82f6', // blue
-    'C': '#eab308', // yellow
-    'D': '#ef4444'  // red
+    'A': '#22c55e',
+    'B': '#3b82f6',
+    'C': '#eab308',
+    'D': '#ef4444'
   };
-
-  // BOUNCER: If completely uncontactable, override to 0
-  if (lead.email_quality === 'none' && !lead.phone_e164 && !lead.phone && !lead.has_website) {
-    return {
-      total: 0,
-      grade: 'D',
-      contact_score: 0,
-      digital_score: 0,
-      intent_score: 0,
-      fit_score: 0,
-      factors: { uncontactable: -100 },
-      grade_color: gradeColors['D']
-    };
-  }
 
   return {
     total,
     grade,
-    contact_score: norm_contact,
-    digital_score: norm_digital,
-    intent_score: norm_intent,
-    fit_score: norm_fit,
+    contact_score: (lead.domain_mx_verified || lead.email_verified || lead.phone_e164) ? 25 : 0,
+    digital_score: lead.has_pixel ? 25 : 0,
+    intent_score: (lead.runs_ads || lead.has_active_ads) ? 35 : 0,
+    fit_score: 15,
     factors,
     grade_color: gradeColors[grade]
   };
@@ -289,9 +152,11 @@ export async function enrichLead(rawLead: any, locationHint: string) {
   const enriched = { ...rawLead };
 
   if (enriched.email) {
-    enriched.email_verified = await verifyEmailMX(enriched.email);
+    enriched.domain_mx_verified = await verifyEmailMX(enriched.email);
+    enriched.email_verified = enriched.domain_mx_verified;
     enriched.email_quality = classifyEmailQuality(enriched.email);
   } else {
+    enriched.domain_mx_verified = false;
     enriched.email_verified = false;
     enriched.email_quality = 'none';
   }

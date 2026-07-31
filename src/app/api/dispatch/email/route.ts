@@ -4,8 +4,11 @@ import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 
 export async function POST(req: Request) {
-  try {
-    const { queueId } = await req.json();
+  // EMERGENCY KILL-SWITCH ACTIVE: Block all email dispatches
+  return NextResponse.json({
+    error: 'EMAIL DISPATCH DISABLED',
+    message: 'Email dispatch is urgently disabled to prevent duplicate outbound emails.'
+  }, { status: 503 });
     if (!queueId) {
       return NextResponse.json({ error: 'Missing queueId' }, { status: 400 });
     }
@@ -93,10 +96,11 @@ export async function POST(req: Request) {
 
         const transporter = nodemailer.createTransport(transporterOptions);
         const info = await transporter.sendMail({
-          from: `"Akarsa" <${gmailUser}>`,
+          from: `"Ritik Om Sharma" <${gmailUser}>`,
           to: target.email,
           subject: subject,
-          html: `<div style="font-family: sans-serif; font-size: 15px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
+          text: body,
+          html: `<div style="font-family: sans-serif; font-size: 14px; line-height: 1.5; color: #222; max-width: 600px;">${htmlBody}</div>`,
         });
         providerMsgId = info.messageId || 'smtp-sent';
 
@@ -112,10 +116,11 @@ export async function POST(req: Request) {
 
         const resend = new Resend(apiKey);
         const { data: resendResult, error: resendError } = await resend.emails.send({
-          from: `Akarsa <${senderEmail}>`,
+          from: `Ritik Om Sharma <${senderEmail}>`,
           to: finalToEmail,
           subject: finalSubject,
-          html: `<div style="font-family: sans-serif; font-size: 15px; line-height: 1.6; color: #333;">${htmlBody}</div>`,
+          text: body,
+          html: `<div style="font-family: sans-serif; font-size: 14px; line-height: 1.5; color: #222; max-width: 600px;">${htmlBody}</div>`,
         });
 
         if (resendError) throw new Error(resendError.message);

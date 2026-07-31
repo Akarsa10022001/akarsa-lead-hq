@@ -7,8 +7,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  // CRON_SECRET Protection
-  const authHeader = req.headers.get('Authorization');
+  // EMERGENCY KILL-SWITCH ACTIVE: Block all touch enqueueing and draft generation
+  return NextResponse.json({
+    error: 'TOUCH ENQUEUEING DISABLED',
+    message: 'All draft generation and touch enqueueing has been urgently disabled to prevent duplicate sends.'
+  }, { status: 503 });
   const cronSecret = process.env.CRON_SECRET;
   
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -167,27 +170,29 @@ export async function POST(req: Request) {
         ? 'Pitch "Akarsa One" — a premium multi-client analytics dashboard designed for agencies to track client results, automate reporting, and scale digital operations.'
         : 'Pitch "Akarsa Studio" — elite web development, tailored social media management, organic search optimization, and direct client acquisition services.';
 
-      const prompt = `You are the lead sales copywriter drafting outreach for a high-value prospect.
-Target Profile:
-- Company Name: ${target.company_name}
-- Contact Person: ${target.contact_name} (Title: ${target.contact_title || 'Decision Maker'})
-- Industry: ${target.industry || 'General Business'}
-- Custom Notes: ${target.notes || 'None provided'}
+            const companyClean = target.score_factors?.company_name_clean || target.company_name;
+      const intentSignals = target.score_factors?.intent_signals || [];
 
-Outreach Channel: ${nextStep.channel.toUpperCase()}
-Touch Point Type: ${nextStep.touch_type.toUpperCase()}
-Step Number: ${nextStepNum} of 17
-Instruction Hint: ${nextStep.prompt_hint || 'Write a personalized, concise message.'}
+      const prompt = `You are Ritik Om Sharma (Founder, Akarsa). Write a short, highly personalized cold outreach message to an owner.
 
-Offer details:
-${pitchFocus}
+Target Info:
+- Company Name: ${companyClean}
+- Contact Person: ${target.contact_name || 'Owner'}
+- Triggered Intent Signals: ${intentSignals.join(', ') || 'Active business presence'}
+- Outreach Channel: ${nextStep.channel.toUpperCase()}
+- Touch Type: ${nextStep.touch_type.toUpperCase()} (Step ${nextStepNum})
 
-Goal:
-Write a message that is short, compelling, and natural. Avoid buzzwords, excessive pleasantries, and standard marketing speak. If the channel is email, include a Subject line. If it is LinkedIn, WhatsApp, or Instagram, do NOT include a subject line.
+STRICT COPYWRITING RULES (NON-NEGOTIABLE):
+1. MAX LENGTH: Under 75 words total.
+2. FORMAT: Plain text only. NO HTML, NO markdown formatting, NO tracking links, NO images.
+3. OPENER: Reference a specific observable signal (e.g., active ad spend, Meta Pixel setup, recent review response, or website performance).
+4. SINGLE LOW-FRICTION CTA: Ask a simple interest-gauge question (e.g. "Mind if I send over a 2-minute video breakdown of how we fixed this?" or "Open to taking a look at a 3-minute video?").
+5. SPAM GUARDRAIL: NEVER use spam words ("free", "guaranteed", "boost sales", "revenue", "act now", "limited time", "special offer").
+6. SIGNATURE & OPT-OUT: End with "Best,\nRitik Om Sharma\nAkarsa" and a subtle footer line: "Reply 'stop' if you prefer not to hear from me."
 
-Return a JSON object with:
+Return JSON:
 {
-  "body": "The drafted message body"
+  "body": "The plain text email body"
 }`;
 
       try {

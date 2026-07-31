@@ -44,7 +44,12 @@ export async function POST(req: Request) {
     if (seqError) throw seqError;
 
     const existingSeqIds = new Set(existingSeqs?.map(s => s.target_id) || []);
-    const leadsToStage = readyLeads.filter(l => !existingSeqIds.has(l.id));
+    const leadsToStage = readyLeads.filter(l => 
+      !existingSeqIds.has(l.id) && 
+      l.status !== 'Lost' && 
+      (l.score_total || l.quality_score || 0) >= 40 && 
+      (l.email_verified || l.email || l.phone_e164 || l.phone)
+    );
 
     if (leadsToStage.length === 0) {
       return NextResponse.json({ success: true, message: 'All fetched ready leads already have sequences.' });

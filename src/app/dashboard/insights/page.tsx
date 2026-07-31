@@ -40,48 +40,19 @@ export default function SequenceInsights() {
     }
   };
 
-  // Safe fallback data if no conversion events are recorded yet
-  const defaultChannelPerformance = [
-    { channel: "email", replies: 12, wins: 2 },
-    { channel: "whatsapp", replies: 28, wins: 8 },
-    { channel: "linkedin", replies: 19, wins: 4 },
-    { channel: "instagram", replies: 8, wins: 1 }
-  ];
+  const channelData = stats?.channelPerformance || [];
 
-  const defaultTouchEffectiveness = [
-    { touch_number: 1, replies: 1 },
-    { touch_number: 2, replies: 0 },
-    { touch_number: 3, replies: 4 },
-    { touch_number: 4, replies: 9 },
-    { touch_number: 5, replies: 15 },
-    { touch_number: 6, replies: 8 },
-    { touch_number: 7, replies: 12 },
-    { touch_number: 10, replies: 18 },
-    { touch_number: 12, replies: 7 },
-    { touch_number: 15, replies: 4 },
-    { touch_number: 17, replies: 2 }
-  ];
-
-  const channelData = stats?.channelPerformance?.length > 0
-    ? stats.channelPerformance
-    : defaultChannelPerformance;
-
-  const touchData = stats?.touchEffectiveness?.length > 0
-    ? stats.touchEffectiveness.map((t: any) => ({
-        touch_number: `Touch ${t.touch_number}`,
-        replies: t.replies
-      }))
-    : defaultTouchEffectiveness.map(t => ({
-        touch_number: `Touch ${t.touch_number}`,
-        replies: t.replies
-      }));
+  const touchData = stats?.touchEffectiveness?.map((t: any) => ({
+    touch_number: `Touch ${t.touch_number}`,
+    replies: t.replies
+  })) || [];
 
   const summary = stats?.summary || {
-    totalConversions: 67,
-    totalWon: 15,
-    totalReplies: 67,
-    winRatePercent: "22.4",
-    averageTouches: "5.8"
+    totalConversions: 0,
+    totalWon: 0,
+    totalReplies: 0,
+    winRatePercent: "0.0",
+    averageTouches: "0.0"
   };
 
   return (
@@ -145,21 +116,29 @@ export default function SequenceInsights() {
                 <h3 className="font-bold text-sm uppercase tracking-wider font-heading">Channel Performance</h3>
                 <p className="text-xs text-muted-foreground">Compare conversion reply rates and closed-won counts across outreach channels.</p>
               </div>
-              <div className="h-80 w-full pt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={channelData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
-                    <XAxis dataKey="channel" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                      labelStyle={{ fontWeight: 'bold', color: 'hsl(var(--foreground))' }}
-                    />
-                    <Legend verticalAlign="top" height={36} iconType="rect" />
-                    <Bar dataKey="replies" name="Replies" fill="#3b82f6" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="wins" name="Wins (Won)" fill="var(--color-primary, #10b981)" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="h-80 w-full pt-4 flex items-center justify-center">
+                {channelData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={channelData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
+                      <XAxis dataKey="channel" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                        labelStyle={{ fontWeight: 'bold', color: 'hsl(var(--foreground))' }}
+                      />
+                      <Legend verticalAlign="top" height={36} iconType="rect" />
+                      <Bar dataKey="replies" name="Replies" fill="#3b82f6" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="wins" name="Wins (Won)" fill="var(--color-primary, #10b981)" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center p-6 border border-dashed border-border rounded-lg max-w-sm">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      No replies logged yet — charts will populate once inbound replies are recorded.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -169,15 +148,29 @@ export default function SequenceInsights() {
                 <h3 className="font-bold text-sm uppercase tracking-wider font-heading">Touch Number Effectiveness</h3>
                 <p className="text-xs text-muted-foreground">See which touch number in the 17-touch sequence yields the most replies.</p>
               </div>
-              <div className="h-80 w-full pt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={touchData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
-                    <XAxis dataKey="touch_number" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                      labelStyle={{ fontWeight: 'bold', color: 'hsl(var(--foreground))' }}
+              <div className="h-80 w-full pt-4 flex items-center justify-center">
+                {touchData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={touchData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
+                      <XAxis dataKey="touch_number" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                        labelStyle={{ fontWeight: 'bold', color: 'hsl(var(--foreground))' }}
+                      />
+                      <Line type="monotone" dataKey="replies" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center p-6 border border-dashed border-border rounded-lg max-w-sm">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      No replies logged yet — charts will populate once inbound replies are recorded.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
                     />
                     <Legend verticalAlign="top" height={36} />
                     <Line type="monotone" dataKey="replies" name="Replies" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />

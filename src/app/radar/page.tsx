@@ -21,6 +21,7 @@ export default function Radar() {
       const { data, error } = await supabase
         .from('leads')
         .select('*')
+        .neq('status', 'Rejected')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -36,7 +37,7 @@ export default function Radar() {
     fetchLeads();
   }, []);
 
-  const excludedStatuses = ['emailed', 'hot', 'won', 'dead', 'replied', 'contacted'];
+  const excludedStatuses = ['emailed', 'hot', 'won', 'dead', 'replied', 'contacted', 'rejected', 'Rejected'];
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           lead.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||

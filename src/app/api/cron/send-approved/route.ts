@@ -9,6 +9,12 @@ export const dynamic = 'force-dynamic';
 const DAILY_EMAIL_CAP = parseInt(process.env.DAILY_EMAIL_CAP || '30', 10);
 
 export async function POST(req: Request) {
+  // EMERGENCY KILL-SWITCH ACTIVE: Block all automated email sending
+  return NextResponse.json({
+    error: 'AUTOMATED SENDING DISABLED',
+    message: 'Automated email sending is urgently disabled to prevent duplicate outbound emails.'
+  }, { status: 503 });
+  
   // CRON_SECRET Protection
   const authHeader = req.headers.get('Authorization');
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {

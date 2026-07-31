@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 
+function cleanCompanyName(rawName: string): string {
+  if (!rawName) return '';
+  let cleaned = rawName.replace(/\(.*?\)/g, '');
+  if (cleaned.includes('|')) cleaned = cleaned.split('|')[0];
+  if (cleaned.length > 40 && cleaned.includes(' - ')) cleaned = cleaned.split(' - ')[0];
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  return cleaned.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+}
+
 // Stage 1: INGESTION ENDPOINT (Apify Webhook)
 export async function POST(request: Request) {
   try {
@@ -30,11 +39,41 @@ export async function POST(request: Request) {
 
       if (!company_name) continue;
 
-      // Note: is_generic_email, email_is_valid, and is_disqualified are generated columns in the DB!
-      // But the prompt said: "Run email_is_valid and is_generic_email checks ON INGEST so garbage never lands as clean."
-      // Since they are generated columns in Postgres, they will automatically be evaluated on insert.
-      // But we can also just let Supabase handle the generation.
-      
+      const company_name_clean = cleanCompanyName(company_name);
+      let status = 'New';
+      let rejection_reason: string | null = null;
+
+      // 1. Negative Filter: Social / No-reply email
+      if (email && /facebook\.com|instagram\.com|linkedin\.com|noreply|no-reply/i.test(email)) {
+        status = 'Rejected';
+        rejection_reason = 'social_or_noreply_email';
+      } 
+      // 2. Negative Filter: No contact info
+      else if (!email && !phone) {
+        status = 'Rejected';
+        rejection_reason = 'no_contact_info';
+      }
+
+      // 3. Negative Filter: Duplicate check on company_name_clean + geo
+      if (status !== 'Rejected') {
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id')
+          .ilike('company_name', `%${company_name_clean}%`)
+          .eq('geo', geo)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          status = 'Rejected';
+          rejection_reason = 'duplicate_lead';
+        }
+      }
+
+      const score_factors = {
+        company_name_clean,
+        rejection_reason
+      };
+
       const { error } = await supabase.from('leads').insert({
         company_name,
         domain,
@@ -46,10 +85,11 @@ export async function POST(request: Request) {
         review_count,
         social_links,
         segment,
+        status,
+        score_factors,
         has_website: !!domain
       });
 
-      // Deduplication is handled by unique constraints on the DB, so we ignore insertion errors for duplicates
       if (!error) inserted++;
     }
 

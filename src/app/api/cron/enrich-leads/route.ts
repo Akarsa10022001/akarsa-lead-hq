@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
+import { calculateIntelScore } from '@/lib/enrichment/scorer';
 import * as cheerio from 'cheerio';
 import dns from 'dns/promises';
 
@@ -260,6 +261,17 @@ export async function GET(request: Request) {
               results.emails_found++;
             }
           }
+
+          const mergedLead = { ...lead, ...update };
+          const intel = calculateIntelScore(mergedLead);
+
+          update.score_total = intel.total;
+          update.quality_score = intel.total;
+          update.score_grade = intel.grade;
+          update.score_factors = {
+            ...(lead.score_factors || {}),
+            ...intel.factors
+          };
 
           const { error: updateErr } = await supabase.from('leads').update(update).eq('id', lead.id);
           if (updateErr) results.errors++;

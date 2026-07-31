@@ -34,7 +34,9 @@ export default function Home() {
     const { count: readyLeadsCount } = await supabase.from('sequence_ready_leads').select('*', { count: 'exact', head: true });
     const { count: activeSequencesCount } = await supabase.from('target_sequences').select('*', { count: 'exact', head: true }).in('status', ['active', 'pending_enrollment']);
     const { count: emailsSentCount } = await supabase.from('touches').select('*', { count: 'exact', head: true }).eq('send_status', 'sent');
-    const { count: repliesCount } = await supabase.from('target_sequences').select('*', { count: 'exact', head: true }).eq('status', 'replied');
+    const { count: receivedMsgCount } = await supabase.from('outreach_messages').select('*', { count: 'exact', head: true }).eq('status', 'received');
+    const { count: convRepliesCount } = await supabase.from('conversions').select('*', { count: 'exact', head: true }).in('outcome', ['replied', 'meeting_booked', 'won']);
+    const repliesCount = Math.max(receivedMsgCount || 0, convRepliesCount || 0);
 
     let convRate = "0%";
     if (emailsSentCount && emailsSentCount > 0 && repliesCount !== null) {
@@ -219,21 +221,18 @@ export default function Home() {
                   <BrainCircuit className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold font-heading uppercase tracking-wide">30-Day Lead Pipeline Forecast</h3>
+                  <h3 className="text-xl font-bold font-heading uppercase tracking-wide">30-Day Lead Pipeline Projection</h3>
                   {forecastState.historyDays >= 7 && forecastState.forecast ? (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Powered by ARIMA · {forecastState.forecast.summary.predicted_total_30d} predicted leads · Avg {forecastState.forecast.summary.predicted_avg_daily}/day
+                      Run-rate projection — last 7 days extrapolated · {forecastState.forecast.summary.predicted_total_30d} projected leads · Avg {forecastState.forecast.summary.predicted_avg_daily}/day
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Building forecast — need ~7 days of activity (currently Day {forecastState.historyDays} of 7)
+                      Not enough history for a projection.
                     </p>
                   )}
                 </div>
               </div>
-              <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                [ AI ENGINE v1.0 ]
-              </span>
             </div>
             
             {forecastState.historyDays >= 7 && forecastState.forecast ? (

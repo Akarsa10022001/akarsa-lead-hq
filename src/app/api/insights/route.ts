@@ -3,12 +3,16 @@ import { supabase } from '@/lib/supabase/client';
 
 export async function GET() {
   try {
+
     // 1. Fetch channel performance view
     const { data: channelPerf, error: channelErr } = await supabase
       .from('channel_performance')
       .select('*');
 
-    if (channelErr) throw channelErr;
+    if (channelErr) {
+      console.error("[INSIGHTS ROUTE DEBUG CHANNEL ERR]:", channelErr);
+      throw channelErr;
+    }
 
     // 2. Fetch touch effectiveness view
     const { data: touchEff, error: touchErr } = await supabase
@@ -17,16 +21,22 @@ export async function GET() {
 
     if (touchErr) throw touchErr;
 
-    // 3. Fetch summary stats
+    // 3. Fetch summary stats from conversions & received outreach_messages
     const { data: conversions, error: convErr } = await supabase
       .from('conversions')
       .select('outcome, touches_to_outcome');
 
     if (convErr) throw convErr;
 
+    const { count: receivedMsgCount } = await supabase
+      .from('outreach_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'received');
+
     const totalConvs = conversions?.length || 0;
     const totalWon = conversions?.filter(c => c.outcome === 'won').length || 0;
-    const totalReplies = conversions?.filter(c => ['replied', 'meeting_booked', 'won'].includes(c.outcome)).length || 0;
+    const convReplies = conversions?.filter(c => ['replied', 'meeting_booked', 'won'].includes(c.outcome)).length || 0;
+    const totalReplies = Math.max(convReplies, receivedMsgCount || 0);
     
     // Average touches to outcome calculation
     const withTouches = conversions?.filter(c => c.touches_to_outcome > 0) || [];
