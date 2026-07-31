@@ -68,8 +68,8 @@ export default function ApprovalsQueue() {
   };
 
   const handleApproveAndSend = async (item: any) => {
-    setActioningId(item.id);
-    try {
+    alert("EMERGENCY KILL-SWITCH: Automated dispatches and Approve & Send pathways are urgently disabled.");
+    return;
       // First, update status to approved
       const approveRes = await fetch("/api/approvals", {
         method: "PATCH",
