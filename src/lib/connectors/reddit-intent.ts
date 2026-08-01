@@ -1,5 +1,3 @@
-import { callLLM } from '../llm';
-
 export interface IntentLead {
   company_name: string;
   contact_name?: string;
@@ -15,10 +13,14 @@ export interface IntentLead {
 
 export class CommunityIntentConnector {
   /**
-   * Scrapes live high-intent opportunities asking for web dev, marketing, SEO, or agency help
+   * Scrapes live high-intent opportunities asking for web dev, marketing, SEO, or agency help.
+   * location is passed through so leads aren't hardcoded to "Remote".
    */
-  async search(queryKeyword: string = 'web design marketing agency'): Promise<IntentLead[]> {
+  async search(queryKeyword: string = 'web design marketing agency', location?: string): Promise<IntentLead[]> {
     const leads: IntentLead[] = [];
+
+    // Resolve canonical location label
+    const resolvedLocation = location && location.trim() ? location.trim() : 'Remote / Online Community';
 
     // 1. Fetch Reddit JSON for hiring/seeking subreddits
     const subreddits = ['forhire', 'smallbusiness', 'webdev', 'marketing', 'agency'];
@@ -39,22 +41,29 @@ export class CommunityIntentConnector {
           const p = post.data;
           const title = p.title || '';
           const selftext = (p.selftext || '').substring(0, 1000);
-          const fullContent = `${title}\n${selftext}`;
 
           // Only pick posts looking to hire or looking for services ([Hiring], "looking for agency", "need website")
           if (/\[hiring\]|need (a )?(website|agency|designer|marketer)|looking for (agency|web dev|marketing)/i.test(title)) {
             const author = p.author !== '[deleted]' ? p.author : 'Community Member';
             const postUrl = `https://reddit.com${p.permalink}`;
 
-            // Extract email/phone if present in post body
+            // Extract email if present in post body
             const emailMatch = selftext.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            // Extract domain if present in post body
             const domainMatch = selftext.match(/https?:\/\/(www\.)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
 
+            // FIX: Use resolved location from config instead of hardcoded "Remote / Online Community"
+            // Derive a cleaner company_name: strip [Hiring] / [Paid] / [For Hire] tags from title
+            const cleanTitle = title.replace(/^\[(hiring|paid|for hire|seeking|freelance)\]\s*/i, '').trim();
+            const companyName = cleanTitle.length > 50 ? `${cleanTitle.substring(0, 47)}...` : cleanTitle;
+
             leads.push({
-              company_name: title.length > 50 ? `${title.substring(0, 47)}...` : title,
+              company_name: companyName,
               contact_name: author !== 'Community Member' ? `u/${author}` : undefined,
-              industry: 'Digital Client / RFP Project',
-              location: 'Remote / Online Community',
+              // FIX: Industry derived from subreddit context
+              industry: sub === 'smallbusiness' ? 'Corporate & General Business' : 'Digital Client / RFP Project',
+              // FIX: Pass actual location config rather than hardcoded 'Remote'
+              location: resolvedLocation,
               source_url: postUrl,
               evidence_text: `Reddit Post in r/${sub}: "${title}" — ${selftext.substring(0, 150)}...`,
               signal_type: 'reddit_hiring',

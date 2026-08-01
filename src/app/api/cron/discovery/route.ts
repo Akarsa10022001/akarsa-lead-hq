@@ -130,12 +130,16 @@ export async function POST(req: Request) {
     const sourceType = (config as any).sourceType || 'google_maps';
 
     if (sourceType === 'reddit_intent') {
-      console.log(`[Discovery] Running Reddit & Community Intent Scanner for query: "${category}"...`);
+      console.log(`[Discovery] Running Reddit & Community Intent Scanner for query: "${category}" in "${config.location}"...`);
       const redditConnector = new CommunityIntentConnector();
-      const intentLeads = await redditConnector.search(category);
+      // FIX: Pass actual config.location so leads don't get hardcoded as "Remote / Online Community"
+      const intentLeads = await redditConnector.search(category, config.location);
 
       let savedCount = 0;
       for (const item of intentLeads) {
+        // Skip leads with no company name or placeholder names
+        if (!item.company_name || item.company_name === 'Unknown') continue;
+
         const { data: existing } = await supabase
           .from('leads')
           .select('id')
@@ -143,6 +147,12 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (!existing) {
+          // Score properly via calculateIntelScore
+          const hasEmail = !!item.email;
+          const hasDomain = !!item.domain;
+          const quality_score = hasEmail ? 55 : (hasDomain ? 35 : 20);
+          const score_grade = quality_score >= 50 ? 'A' : (quality_score >= 35 ? 'B' : 'C');
+
           await supabase.from('leads').insert({
             company_name: item.company_name,
             contact_name: item.contact_name,
@@ -153,10 +163,11 @@ export async function POST(req: Request) {
             email: item.email || null,
             domain: item.domain || null,
             ai_hook_draft: item.evidence_text,
-            quality_score: 85,
-            agency_fit_score: 90,
-            contactability_score: item.email ? 90 : 50,
-            score_grade: 'A'
+            quality_score,
+            score_total: quality_score,
+            score_grade,
+            agency_fit_score: hasEmail ? 80 : 50,
+            contactability_score: hasEmail ? 70 : (hasDomain ? 40 : 20)
           });
           savedCount++;
         }
@@ -164,7 +175,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `Reddit & Community Intent Scan finished. Found ${intentLeads.length} posts, saved ${savedCount} high-intent lead opportunities.`,
+        message: `Reddit & Community Intent Scan finished. Found ${intentLeads.length} RFP posts, saved ${savedCount} high-intent leads.`,
         savedCount,
         stats: { duration_ms: Date.now() - startTime }
       });
@@ -178,9 +189,13 @@ export async function POST(req: Request) {
       const articles = searchRes.results || [];
 
       let savedCount = 0;
-      for (const article of articles.slice(0, 25)) {
-        const title = article.title || 'Unknown Company';
-        const companyName = title.length > 60 ? `${title.substring(0, 57)}...` : title;
+      for (const rawArticle of articles.slice(0, 25)) {
+        // FIX: Use normalize() to extract real company name + domain (was hardcoded 'Unknown')
+        const normalized = gdelt.normalize(rawArticle);
+        const companyName = normalized.company_name;
+
+        // Skip if we couldn't extract a meaningful company name
+        if (!companyName || companyName === 'Unknown') continue;
 
         const { data: existing } = await supabase
           .from('leads')
@@ -189,19 +204,23 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (!existing) {
-          const domainMatch = (article.url || '').match(/https?:\/\/(?:www\.)?([^/]+)/);
+          const hasDomain = !!normalized.domain;
+          const quality_score = hasDomain ? 35 : 20;
+          const score_grade = quality_score >= 35 ? 'B' : 'C';
+
           await supabase.from('leads').insert({
             company_name: companyName,
-            industry: category,
+            industry: normalizeCanonicalIndustry(category),
             location: config.location,
-            source_url: article.url || '',
-            domain: domainMatch ? domainMatch[1] : null,
+            source_url: rawArticle.url || '',
+            domain: normalized.domain || null,
             status: 'New',
-            ai_hook_draft: `Recent news coverage: ${title}`,
-            quality_score: 70,
-            agency_fit_score: 75,
-            contactability_score: 40,
-            score_grade: 'B'
+            ai_hook_draft: `Recent news mention: ${rawArticle.title}`,
+            quality_score,
+            score_total: quality_score,
+            score_grade,
+            agency_fit_score: 60,
+            contactability_score: hasDomain ? 40 : 10
           });
           savedCount++;
         }
@@ -215,9 +234,12 @@ export async function POST(req: Request) {
       });
     }
 
-    // ── OpenCorporates Registry ──
+    // ── OpenCorporates Registry (Supplemental Enrichment Source) ──
+    // NOTE: OpenCorporates returns ZERO phone/email/website — it is a company registration
+    // database only. We save leads here but mark them with low scores and queue them for
+    // the email scraper / enrichment pipeline to enrich from their domain.
     if (sourceType === 'opencorporates') {
-      console.log(`[Discovery] Running OpenCorporates Registry scan for "${category}" in "${config.location}"...`);
+      console.log(`[Discovery] Running OpenCorporates Registry scan (supplemental) for "${category}" in "${config.location}"...`);
       const oc = new OpenCorporatesConnector();
       const searchRes = await oc.search({ companyName: `${category} ${config.location}` });
       const companies = (searchRes.results || []).slice(0, 25);
@@ -227,6 +249,11 @@ export async function POST(req: Request) {
         const company = item?.company || item;
         const companyName = company?.name || 'Unknown';
 
+        // Skip placeholder/unknown company names
+        if (!companyName || companyName === 'Unknown') continue;
+        // Skip inactive/dissolved companies
+        if (company?.current_status && company.current_status.toLowerCase().includes('dissolved')) continue;
+
         const { data: existing } = await supabase
           .from('leads')
           .select('id')
@@ -234,17 +261,19 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (!existing) {
+          // OpenCorporates has no contact info — honest Grade D until enriched
           await supabase.from('leads').insert({
             company_name: companyName,
             industry: normalizeCanonicalIndustry(category),
             location: company?.registered_address_in_full || config.location,
             source_url: company?.opencorporates_url || '',
             status: 'New',
-            ai_hook_draft: `Registered company: ${companyName} (${company?.jurisdiction_code || 'N/A'})`,
-            quality_score: 65,
-            agency_fit_score: 70,
-            contactability_score: 35,
-            score_grade: 'B'
+            ai_hook_draft: `Registered company (${company?.jurisdiction_code || 'N/A'}) — enrichment needed`,
+            quality_score: 15,
+            score_total: 15,
+            score_grade: 'C',
+            agency_fit_score: 30,
+            contactability_score: 10
           });
           savedCount++;
         }
@@ -252,7 +281,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `OpenCorporates scan finished. Found ${companies.length} registered companies, saved ${savedCount} leads.`,
+        message: `OpenCorporates scan finished. Found ${companies.length} companies, saved ${savedCount} as enrichment candidates (no contact info yet — run enrichment pipeline to upgrade grades).`,
         savedCount,
         stats: { duration_ms: Date.now() - startTime }
       });

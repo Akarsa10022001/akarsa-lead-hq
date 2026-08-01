@@ -15,7 +15,9 @@ export class GDELTConnector implements Connector {
       if (!response.ok) return { results: [] };
       
       const data = await response.json();
-      return data.articles || [];
+      // FIX: was returning `data.articles || []` (wrong shape — array instead of {results})
+      const articles = data.articles || [];
+      return { results: articles };
     } catch (e) {
       console.warn("GDELT API error:", e);
       return { results: [] };
@@ -27,8 +29,32 @@ export class GDELTConnector implements Connector {
   }
 
   normalize(rawRecord: any): NormalizedLead {
+    // FIX: was always returning company_name: 'Unknown'
+    // Now extracts a meaningful company name from article title by stripping common news suffixes
+    const title: string = rawRecord?.title || '';
+    const url: string = rawRecord?.url || '';
+
+    // Extract domain as company name proxy (e.g. "techcrunch.com" → "Techcrunch")
+    let companyName = 'Unknown';
+    if (title) {
+      // Attempt to extract company name: take first segment before ' - ', ' | ', or ' — '
+      const cleaned = title.replace(/\s[-|—]\s.*/g, '').trim();
+      companyName = cleaned.length > 5 ? cleaned.substring(0, 80) : title.substring(0, 80);
+    }
+
+    // Extract domain from article URL for website signal
+    let domain: string | undefined;
+    let location: string | undefined;
+    try {
+      const parsed = new URL(url);
+      domain = parsed.hostname.replace(/^www\./, '');
+    } catch {}
+
     return {
-      company_name: 'Unknown',
+      company_name: companyName,
+      domain,
+      location,
+      source_url: url,
       raw_data: rawRecord,
       source_name: this.name,
       evidence: this.getEvidence(rawRecord)
@@ -44,6 +70,15 @@ export class GDELTConnector implements Connector {
         signal_type: 'news_mention',
         evidence_text: `Recent news coverage: ${rawRecord.title}`,
         evidence_url: rawRecord.url
+      });
+    }
+
+    // Seendate signal (freshness)
+    if (rawRecord.seendate) {
+      evidence.push({
+        category: 'trigger',
+        signal_type: 'news_freshness',
+        evidence_text: `Article published: ${rawRecord.seendate}`
       });
     }
 

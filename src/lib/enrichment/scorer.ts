@@ -27,7 +27,9 @@ export function inferRegionFromLocation(location: string): CountryCode | undefin
   if (loc.includes('india') || loc.includes('delhi') || loc.includes('mumbai') || loc.includes('bangalore') || loc.includes('indore')) return 'IN';
   if (loc.includes('uae') || loc.includes('dubai') || loc.includes('abu dhabi')) return 'AE';
   if (loc.includes('uk') || loc.includes('united kingdom') || loc.includes('london')) return 'GB';
-  if (loc.includes('us') || loc.includes('usa') || loc.includes('united states') || loc.includes('new york') || loc.includes('austin')) return 'US';
+  // FIX: was `us` which matched "south" in "New South Wales", "Australia", etc.
+  // Now only match explicit USA-only terms
+  if (loc.includes('usa') || loc.includes('united states') || loc.includes('new york') || loc.includes('austin') || loc.includes('san francisco') || loc.includes('chicago') || loc.includes('los angeles') || (loc.includes(' us') && !loc.includes('south'))) return 'US';
   if (loc.includes('singapore')) return 'SG';
   if (loc.includes('australia') || loc.includes('sydney') || loc.includes('melbourne')) return 'AU';
   if (loc.includes('canada') || loc.includes('toronto') || loc.includes('vancouver')) return 'CA';
@@ -82,10 +84,10 @@ export function classifyEmailQuality(email: string | null | undefined): string {
  * ============================================================
  * 4 dimensions, each scored 0-25, for a total of 0-100:
  * 
- * 1. CONTACT (25 pts)   — Can we reach them?
- * 2. DIGITAL (25 pts)   — How mature is their online presence?
- * 3. INTENT (25 pts)    — Are they showing buying signals?
- * 4. FIT (25 pts)       — Do they match our ideal customer profile?
+ * 1. CONTACT (25 pts)   — Can we reach them? (email, phone, MX verified)
+ * 2. DIGITAL (25 pts)   — How mature is their online presence? (website, pixel, ads, social)
+ * 3. INTENT (25 pts)    — Are they showing buying signals? (reviews, news, RFP posts)
+ * 4. FIT (25 pts)       — Do they match our ICP? (rating, industry, established business)
  */
 
 export interface IntelScore {
@@ -100,74 +102,140 @@ export interface IntelScore {
 }
 
 export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
-  let score = 0;
-  const factors: Record<string, number> = {};
-
   // Extract signals from lead_signals array (passed or attached to lead)
   const signalList = signals || lead.lead_signals || [];
 
-  if (Array.isArray(signalList) && signalList.length > 0) {
+  // ─────────────────────────────────────────────────────────────
+  // DIMENSION 1: CONTACT SCORE (0–25)
+  // How reachable is this lead?
+  // ─────────────────────────────────────────────────────────────
+  let contact_score = 0;
+  const factors: Record<string, number> = {};
+
+  if (lead.email && lead.email_quality !== 'invalid_scraped' && lead.email_quality !== 'bounced') {
+    // Named email (first.last@domain) is worth more than role email (info@domain)
+    const emailPts = lead.email_quality === 'named' ? 15 : 10;
+    contact_score += emailPts;
+    factors.has_valid_email = emailPts;
+  }
+  if (lead.phone || lead.phone_e164) {
+    contact_score += 10;
+    factors.has_valid_phone = 10;
+  }
+  if (lead.email_verified || lead.domain_mx_verified) {
+    contact_score += 5;
+    factors.mx_verified = 5;
+  }
+  // Cap at 25
+  contact_score = Math.min(contact_score, 25);
+
+  // ─────────────────────────────────────────────────────────────
+  // DIMENSION 2: DIGITAL MATURITY SCORE (0–25)
+  // How developed is their online presence? (= how much do they need us?)
+  // ─────────────────────────────────────────────────────────────
+  let digital_score = 0;
+
+  if (lead.has_website || lead.website || lead.social_links?.website) {
+    digital_score += 5;
+    factors.has_website = 5;
+  }
+
+  // Signal-based digital maturity (from enrichment pipeline)
+  if (Array.isArray(signalList)) {
     for (const s of signalList) {
       const type = s.signal_type;
       if (type === 'no_website_on_listing' && !factors.no_website_on_listing) {
-        score += 25;
-        factors.no_website_on_listing = 25;
+        // No website = prime sales opportunity = high digital gap score
+        digital_score += 20;
+        factors.no_website_on_listing = 20;
       } else if (type === 'slow_mobile_site' && !factors.slow_mobile_site) {
-        score += 25;
-        factors.slow_mobile_site = 25;
-      } else if (type === 'established_local' && !factors.established_local) {
-        score += 15;
-        factors.established_local = 15;
-      } else if (type === 'strong_reputation' && !factors.strong_reputation) {
-        score += 15;
-        factors.strong_reputation = 15;
+        digital_score += 15;
+        factors.slow_mobile_site = 15;
       } else if ((type === 'runs_ads' || type === 'active_ads') && !factors.runs_ads) {
-        score += 35;
-        factors.runs_ads = 35;
+        // FIX: was 35 pts (inflated single signal). Now capped at 10 (they have budget, but less urgent need)
+        digital_score += 10;
+        factors.runs_ads = 10;
       } else if (type === 'has_pixel' && !factors.has_pixel) {
-        score += 25;
-        factors.has_pixel = 25;
+        // FIX: was 25 pts unbounded. Now 8 pts within digital dimension
+        digital_score += 8;
+        factors.has_pixel = 8;
       } else if (type === 'ig_active_low_engagement' && !factors.ig_active_low_engagement) {
-        score += 20;
-        factors.ig_active_low_engagement = 20;
-      } else if (type === 'recent_reviews' && !factors.recent_reviews) {
-        score += 15;
-        factors.recent_reviews = 15;
+        digital_score += 8;
+        factors.ig_active_low_engagement = 8;
       }
     }
   }
+  // Cap at 25
+  digital_score = Math.min(digital_score, 25);
 
-  // Base contactability & business quality factors
-  if (lead.email && lead.email_quality !== 'invalid_scraped' && lead.email_quality !== 'bounced') {
-    score += 20;
-    factors.has_valid_email = 20;
+  // ─────────────────────────────────────────────────────────────
+  // DIMENSION 3: INTENT SCORE (0–25)
+  // Is this business showing active buying signals?
+  // ─────────────────────────────────────────────────────────────
+  let intent_score = 0;
+
+  if (Array.isArray(signalList)) {
+    for (const s of signalList) {
+      const type = s.signal_type;
+      if (type === 'recent_reviews' && !factors.recent_reviews) {
+        // New business actively building online presence
+        intent_score += 15;
+        factors.recent_reviews = 15;
+      } else if (type === 'news_mention' && !factors.news_mention) {
+        intent_score += 10;
+        factors.news_mention = 10;
+      } else if (type === 'reddit_hiring' && !factors.reddit_hiring) {
+        intent_score += 20;
+        factors.reddit_hiring = 20;
+      } else if (type === 'news_freshness' && !factors.news_freshness) {
+        intent_score += 5;
+        factors.news_freshness = 5;
+      }
+    }
   }
-  if (lead.phone || lead.phone_e164) {
-    score += 20;
-    factors.has_valid_phone = 20;
-  }
-  if (lead.has_website || lead.website || lead.social_links?.website) {
-    score += 15;
-    factors.has_website = 15;
-  }
-  if (lead.email_verified || lead.domain_mx_verified) {
-    score += 10;
-    factors.mx_verified = 10;
-  }
+  // Cap at 25
+  intent_score = Math.min(intent_score, 25);
+
+  // ─────────────────────────────────────────────────────────────
+  // DIMENSION 4: FIT SCORE (0–25)
+  // FIX: was always returning 0 — now properly computed
+  // Does this business match our ICP (ideal customer profile)?
+  // ─────────────────────────────────────────────────────────────
+  let fit_score = 0;
+
   if (lead.rating && parseFloat(lead.rating) >= 4.0) {
-    score += 15;
-    factors.high_rating = 15;
+    // High-rated = brand-conscious, cares about reputation
+    fit_score += 10;
+    factors.high_rating = 10;
   }
 
-  // Cap max score at 100
-  const total = Math.min(score, 100);
-  
-  // Rebalanced Grade Thresholds: Achievable with free local signals
-  // Grade A (>= 50): 2-3 strong signals (e.g. no_website + established_local + strong_reputation = 55 pts)
-  // Grade B (35-49): 2 signals (e.g. no_website + established_local = 40 pts)
-  // Grade C (15-34): 1 signal (e.g. established_local = 15 pts)
-  // Grade D (< 15): Baseline
-  const grade = total >= 50 ? 'A' : (total >= 35 ? 'B' : (total >= 15 ? 'C' : 'D'));
+  if (Array.isArray(signalList)) {
+    for (const s of signalList) {
+      const type = s.signal_type;
+      if (type === 'established_local' && !factors.established_local) {
+        // 20+ reviews = real business with budget
+        fit_score += 10;
+        factors.established_local = 10;
+      } else if (type === 'strong_reputation' && !factors.strong_reputation) {
+        // 4.0+ stars + 10+ reviews = brand-conscious ICP match
+        fit_score += 10;
+        factors.strong_reputation = 10;
+      } else if (type === 'multi_client' && !factors.multi_client) {
+        fit_score += 8;
+        factors.multi_client = 8;
+      }
+    }
+  }
+  // Cap at 25
+  fit_score = Math.min(fit_score, 25);
+
+  // ─────────────────────────────────────────────────────────────
+  // TOTAL & GRADE
+  // ─────────────────────────────────────────────────────────────
+  const total = Math.min(contact_score + digital_score + intent_score + fit_score, 100);
+
+  // Grade thresholds
+  const grade: 'A' | 'B' | 'C' | 'D' = total >= 50 ? 'A' : (total >= 35 ? 'B' : (total >= 15 ? 'C' : 'D'));
   const gradeColors: Record<string, string> = {
     'A': '#22c55e',
     'B': '#3b82f6',
@@ -178,10 +246,10 @@ export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
   return {
     total,
     grade,
-    contact_score: factors.no_website_on_listing ? 25 : 0,
-    digital_score: factors.has_pixel || factors.slow_mobile_site || 0,
-    intent_score: (factors.established_local || factors.strong_reputation) ? 15 : 0,
-    fit_score: 0,
+    contact_score,
+    digital_score,
+    intent_score,
+    fit_score, // FIX: no longer always 0
     factors,
     grade_color: gradeColors[grade]
   };
@@ -218,7 +286,7 @@ export async function enrichLead(rawLead: any, locationHint: string) {
     enriched.phone_e164 = normalizePhone(enriched.phone, locationHint);
   }
 
-  const intel = calculateIntelScore(enriched);
+  const intel = calculateIntelScore(enriched, enriched.lead_signals);
   
   enriched.quality_score = intel.total;
   enriched.intel_grade = intel.grade;
