@@ -171,13 +171,6 @@ export default function SequenceInsights() {
                 )}
               </div>
             </div>
-                    />
-                    <Legend verticalAlign="top" height={36} />
-                    <Line type="monotone" dataKey="replies" name="Replies" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
           </div>
 
           {/* Qualitative Intel / Callouts */}

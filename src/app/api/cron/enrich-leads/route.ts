@@ -223,7 +223,7 @@ export async function GET(request: Request) {
       // Use enriched_at IS NULL to skip already-processed leads
       const { data: intentLeads, error: e1 } = await supabase
         .from('leads')
-        .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified, runs_ads, has_pixel')
+        .select('id, company_name, contact_name, domain, industry, geo, social_links, email, is_generic_email, is_disqualified, runs_ads, has_pixel, score_factors')
         .eq('is_disqualified', false)
         .is('enriched_at', null)
         .not('domain', 'is', null)

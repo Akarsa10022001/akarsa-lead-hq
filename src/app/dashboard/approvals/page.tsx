@@ -70,45 +70,6 @@ export default function ApprovalsQueue() {
   const handleApproveAndSend = async (item: any) => {
     alert("EMERGENCY KILL-SWITCH: Automated dispatches and Approve & Send pathways are urgently disabled.");
     return;
-      // First, update status to approved
-      const approveRes = await fetch("/api/approvals", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id, status: "approved" })
-      });
-      
-      if (!approveRes.ok) throw new Error("Approval failed");
-
-      // Next, call the channel-specific dispatch route
-      const dispatchRes = await fetch(`/api/dispatch/${item.channel}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queueId: item.id })
-      });
-
-      const result = await dispatchRes.json();
-
-      if (result.success) {
-        // Remove from list if sent successfully
-        setQueue(prev => prev.filter(q => q.id !== item.id));
-      } else if (result.status === "awaiting_manual_send") {
-        // If it requires manual send (LinkedIn, IG, or WA with no consent)
-        // Set state to open the manual modal
-        setAssistedData({
-          id: item.id,
-          url: result.linkedinUrl || result.instagramUrl || `https://wa.me/${(item.leads.phone_e164 || '').replace(/[\s\-()]/g, '').replace(/^\+/, '')}`,
-          body: result.draftBody || item.draft_body,
-          channel: item.channel
-        });
-      } else {
-        alert(`Dispatch failed: ${result.error || "Unknown error"}`);
-      }
-    } catch (err: any) {
-      console.error("Error dispatching touchpoint:", err);
-      alert(`Error: ${err.message}`);
-    } finally {
-      setActioningId(null);
-    }
   };
 
   const handleBulkApprove = async () => {
