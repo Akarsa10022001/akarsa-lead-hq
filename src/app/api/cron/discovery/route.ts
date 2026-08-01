@@ -29,6 +29,24 @@ import pLimit from 'p-limit';
  * Stage 3: Email Pattern Guesser → try common patterns + MX verification
  * Stage 4: Hunter.io (optional fallback) → verified emails from Hunter's database
  */
+function normalizeCanonicalIndustry(raw: string | null | undefined): string {
+  if (!raw) return 'Corporate & General Business';
+  const str = raw.toLowerCase().trim();
+  if (str.includes('restaurant') || str.includes('food') || str.includes('bar') || str.includes('cafe')) return 'Food & Beverage';
+  if (str.includes('hotel') || str.includes('motel') || str.includes('resort') || str.includes('attraction') || str.includes('landmark') || str.includes('museum')) return 'Hospitality & Accommodations';
+  if (str.includes('store') || str.includes('hardware') || str.includes('shop') || str.includes('retail')) return 'Retail & E-commerce';
+  if (str.includes('real_estate') || str.includes('contractor') || str.includes('builder')) return 'Real Estate & Construction';
+  if (str.includes('gym') || str.includes('health') || str.includes('fitness')) return 'Health, Wellness & Fitness';
+  if (str.includes('school') || str.includes('academy') || str.includes('education')) return 'Education & Training';
+  if (str.includes('salon') || str.includes('spa') || str.includes('beauty')) return 'Beauty & Personal Care';
+  if (str.includes('dentist') || str.includes('dental') || str.includes('clinic')) return 'Medical & Dental';
+  if (str.includes('finance') || str.includes('accounting') || str.includes('bank')) return 'Financial & Accounting Services';
+  if (str.includes('travel') || str.includes('car_rental') || str.includes('tours')) return 'Travel & Transportation';
+  if (str.includes('lawyer') || str.includes('legal') || str.includes('attorney')) return 'Legal & Professional Services';
+  if (str.includes('government') || str.includes('police') || str.includes('locality')) return 'Public & Government Services';
+  return 'Corporate & General Business';
+}
+
 export const maxDuration = 300; // Maximum allowed on Hobby with Fluid Compute
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -220,7 +238,7 @@ export async function POST(req: Request) {
         if (!existing) {
           await supabase.from('leads').insert({
             company_name: companyName,
-            industry: category,
+            industry: normalizeCanonicalIndustry(category),
             location: company?.registered_address_in_full || config.location,
             source_url: company?.opencorporates_url || '',
             status: 'New',

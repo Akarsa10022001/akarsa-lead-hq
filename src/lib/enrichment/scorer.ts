@@ -2,6 +2,24 @@ import dns from 'dns';
 import parsePhoneNumberFromString, { CountryCode } from 'libphonenumber-js';
 
 // Reusable ISO mapping based on location string
+export function normalizeCanonicalIndustry(raw: string | null | undefined): string {
+  if (!raw) return 'Corporate & General Business';
+  const str = raw.toLowerCase().trim();
+  if (str.includes('restaurant') || str.includes('food') || str.includes('bar') || str.includes('cafe')) return 'Food & Beverage';
+  if (str.includes('hotel') || str.includes('motel') || str.includes('resort') || str.includes('attraction') || str.includes('landmark') || str.includes('museum')) return 'Hospitality & Accommodations';
+  if (str.includes('store') || str.includes('hardware') || str.includes('shop') || str.includes('retail')) return 'Retail & E-commerce';
+  if (str.includes('real_estate') || str.includes('contractor') || str.includes('builder')) return 'Real Estate & Construction';
+  if (str.includes('gym') || str.includes('health') || str.includes('fitness')) return 'Health, Wellness & Fitness';
+  if (str.includes('school') || str.includes('academy') || str.includes('education')) return 'Education & Training';
+  if (str.includes('salon') || str.includes('spa') || str.includes('beauty')) return 'Beauty & Personal Care';
+  if (str.includes('dentist') || str.includes('dental') || str.includes('clinic')) return 'Medical & Dental';
+  if (str.includes('finance') || str.includes('accounting') || str.includes('bank')) return 'Financial & Accounting Services';
+  if (str.includes('travel') || str.includes('car_rental') || str.includes('tours')) return 'Travel & Transportation';
+  if (str.includes('lawyer') || str.includes('legal') || str.includes('attorney')) return 'Legal & Professional Services';
+  if (str.includes('government') || str.includes('police') || str.includes('locality')) return 'Public & Government Services';
+  return 'Corporate & General Business';
+}
+
 export function inferRegionFromLocation(location: string): CountryCode | undefined {
   if (!location) return undefined;
   const loc = location.toLowerCase();
@@ -160,6 +178,9 @@ export function calculateQualityScore(lead: any) {
 
 export async function enrichLead(rawLead: any, locationHint: string) {
   const enriched = { ...rawLead };
+  if (enriched.industry) {
+    enriched.industry = normalizeCanonicalIndustry(enriched.industry);
+  }
 
   if (enriched.email) {
     enriched.domain_mx_verified = await verifyEmailMX(enriched.email);
