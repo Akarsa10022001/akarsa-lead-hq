@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2, Send, Target } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { generateSmartOutreachCopy } from "@/lib/outreach/copy-generator";
 
 export default function Radar() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -226,7 +227,19 @@ export default function Radar() {
     if (waIndex >= waQueue.length) return;
     const currentLead = waQueue[waIndex];
     const cleanPhone = currentLead.phone.replace(/\D/g, '');
-    const text = encodeURIComponent(`Hi ${currentLead.company_name} Team! Saw your profile in ${currentLead.geo || currentLead.location || 'your area'}. We help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat?`);
+    
+    const copy = generateSmartOutreachCopy({
+      companyName: currentLead.company_name,
+      contactName: currentLead.contact_name,
+      industry: currentLead.industry,
+      city: currentLead.geo || currentLead.location,
+      rating: currentLead.rating,
+      reviewCount: currentLead.review_count,
+      evidenceText: currentLead.ai_hook_draft,
+      hasWebsite: !!currentLead.domain
+    });
+
+    const text = encodeURIComponent(copy.whatsappMessage);
     
     // Open in WhatsApp Web
     window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${text}`, '_blank');

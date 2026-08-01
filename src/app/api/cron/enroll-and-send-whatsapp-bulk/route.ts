@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
+import { generateSmartOutreachCopy } from '@/lib/outreach/copy-generator';
 
 export const maxDuration = 300;
 export const runtime = 'nodejs';
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     while (hasMore) {
       const { data, error } = await supabase
         .from('leads')
-        .select('id, company_name, phone, phone_e164, geo, location, rating, review_count, status')
+        .select('id, company_name, contact_name, phone, phone_e164, geo, location, industry, rating, review_count, domain, status')
         .eq('is_test', false)
         .not('phone', 'is', null)
         .not('phone', 'eq', '')
@@ -45,10 +46,9 @@ export async function POST(req: Request) {
       .from('lead_signals')
       .select('lead_id, signal_type, evidence_text');
 
-    const signalsByLead: Record<string, string[]> = {};
+    const signalsByLead: Record<string, any> = {};
     (signals || []).forEach(s => {
-      signalsByLead[s.lead_id] = signalsByLead[s.lead_id] || [];
-      signalsByLead[s.lead_id].push(s.evidence_text);
+      signalsByLead[s.lead_id] = s;
     });
 
     const { data: defaultSeq } = await supabase.from('sequences').select('id').limit(1);
@@ -64,13 +64,20 @@ export async function POST(req: Request) {
       const cleanPhone = (lead.phone_e164 || lead.phone).replace(/\D/g, '');
       if (!cleanPhone || cleanPhone.length < 7) continue;
 
-      const leadEvidences = signalsByLead[lead.id] || [];
-      const primaryEvidence = leadEvidences[0] || `Established business in ${lead.geo || lead.location || 'your area'}`;
-
-      const messageText = `Hi ${lead.company_name} Team! Saw your profile in ${lead.geo || lead.location || 'your area'} (${primaryEvidence}). We help top local businesses scale revenue with automated client acquisition. Would you be open to a quick chat?`;
+      const signal = signalsByLead[lead.id] || {};
+      const copy = generateSmartOutreachCopy({
+        companyName: lead.company_name,
+        contactName: lead.contact_name,
+        industry: lead.industry,
+        city: lead.geo || lead.location,
+        rating: lead.rating,
+        reviewCount: lead.review_count,
+        evidenceText: signal.evidence_text,
+        signalType: signal.signal_type,
+        hasWebsite: !!lead.domain
+      });
 
       try {
-        // Attempt Meta Cloud API text send
         const metaRes = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
           method: 'POST',
           headers: {
@@ -82,7 +89,7 @@ export async function POST(req: Request) {
             recipient_type: 'individual',
             to: cleanPhone,
             type: 'text',
-            text: { body: messageText }
+            text: { body: copy.whatsappMessage }
           })
         });
 
@@ -118,7 +125,7 @@ export async function POST(req: Request) {
           channel: 'whatsapp',
           touch_type: 'initial_outreach',
           direction: 'outbound',
-          notes: `1-Click WhatsApp Batch Outreach: ${messageText.substring(0, 100)}...`,
+          notes: `Smart WhatsApp Outreach: ${copy.whatsappMessage.substring(0, 100)}...`,
           provider_msg_id: msgId,
           send_status: 'sent'
         });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import nodemailer from 'nodemailer';
+import { generateSmartOutreachCopy } from '@/lib/outreach/copy-generator';
 
 export const maxDuration = 300;
 export const runtime = 'nodejs';
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     while (hasMore) {
       const { data, error } = await supabase
         .from('leads')
-        .select('id, company_name, email, phone, geo, location, rating, review_count, status')
+        .select('id, company_name, contact_name, email, phone, geo, location, industry, rating, review_count, domain, status')
         .eq('is_test', false)
         .not('email', 'is', null)
         .not('email', 'eq', '')
@@ -48,10 +49,9 @@ export async function POST(req: Request) {
       .from('lead_signals')
       .select('lead_id, signal_type, evidence_text');
 
-    const signalsByLead: Record<string, string[]> = {};
+    const signalsByLead: Record<string, any> = {};
     (signals || []).forEach(s => {
-      signalsByLead[s.lead_id] = signalsByLead[s.lead_id] || [];
-      signalsByLead[s.lead_id].push(s.evidence_text);
+      signalsByLead[s.lead_id] = s;
     });
 
     const transporter = nodemailer.createTransport({
@@ -65,22 +65,30 @@ export async function POST(req: Request) {
     let sentCount = 0;
     const sentResults = [];
 
-    // Process top 25 leads per click for fast, reliable deliverability
+    // Process batch of 25 leads per click
     const leadsToProcess = allLeads.slice(0, 25);
 
     for (const lead of leadsToProcess) {
-      const leadEvidences = signalsByLead[lead.id] || [];
-      const primaryEvidence = leadEvidences[0] || `Established business in ${lead.geo || lead.location || 'your area'}`;
-
-      const subject = `Quick question regarding ${lead.company_name}`;
-      const body = `Hi ${lead.company_name} Team,\n\nI was looking into local market leaders in ${lead.geo || lead.location || 'your area'} and noticed: ${primaryEvidence}.\n\nWe help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat this week?\n\nBest regards,\nAkarsa Team`;
+      const signal = signalsByLead[lead.id] || {};
+      
+      const copy = generateSmartOutreachCopy({
+        companyName: lead.company_name,
+        contactName: lead.contact_name,
+        industry: lead.industry,
+        city: lead.geo || lead.location,
+        rating: lead.rating,
+        reviewCount: lead.review_count,
+        evidenceText: signal.evidence_text,
+        signalType: signal.signal_type,
+        hasWebsite: !!lead.domain
+      });
 
       try {
         const info = await transporter.sendMail({
           from: `"Akarsa" <${user}>`,
           to: lead.email,
-          subject,
-          text: body
+          subject: copy.subject,
+          text: copy.body
         });
 
         // Create target_sequence if missing
@@ -112,7 +120,7 @@ export async function POST(req: Request) {
           channel: 'email',
           touch_type: 'initial_outreach',
           direction: 'outbound',
-          notes: `1-Click Bulk Outreach: ${subject}`,
+          notes: `Smart Bulk Outreach: ${copy.subject}`,
           provider_msg_id: info.messageId,
           send_status: 'sent'
         });
