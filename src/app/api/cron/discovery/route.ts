@@ -455,15 +455,26 @@ export async function POST(req: Request) {
           social_links = scrapeResult.social_links;
           
           if (scrapeResult.emails.length > 0) {
-            discoveredEmail = scrapeResult.emails[0]; // Take the first (best) email
-            emailSource = 'website_scrape';
-            stats.emails_from_website++;
-            allEvidence.push({
-              category: 'reachability' as const,
-              signal_type: 'email_scraped',
-              evidence_text: `Email found on website (${scrapeResult.source_pages[0]}): ${discoveredEmail}`
-            });
-            console.log(`[Discovery]   ✓ Found email via scraping: ${discoveredEmail}`);
+            const rawFound = scrapeResult.emails[0];
+            const INVALID_PATTERNS = ['facebook.com', 'instagram.com', 'twitter.com', 'linkedin.com', 'pinterest.com', 'example.com', 'sentry.io', 'wixpress.com', 'godaddy.com', 'domain.com', 'test.com', 'noreply@', 'no-reply@', 'donotreply@'];
+            if (INVALID_PATTERNS.some(p => rawFound.toLowerCase().includes(p))) {
+              console.warn(`[Discovery] Rejected fake social/platform email: ${rawFound}`);
+              allEvidence.push({
+                category: 'gap' as const,
+                signal_type: 'invalid_scraped_email',
+                evidence_text: `Rejected fake social/platform email: ${rawFound}`
+              });
+            } else {
+              discoveredEmail = rawFound;
+              emailSource = 'website_scrape';
+              stats.emails_from_website++;
+              allEvidence.push({
+                category: 'reachability' as const,
+                signal_type: 'email_scraped',
+                evidence_text: `Email found on website (${scrapeResult.source_pages[0]}): ${discoveredEmail}`
+              });
+              console.log(`[Discovery]   ✓ Found email via scraping: ${discoveredEmail}`);
+            }
           }
           if (scrapeResult.homepage_text) {
             console.log(`[Discovery] Extracting agency signals from website text...`);
