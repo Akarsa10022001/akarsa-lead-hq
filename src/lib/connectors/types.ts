@@ -1,5 +1,5 @@
 export interface ConnectorEvidence {
-  category: 'budget' | 'gap' | 'reachability' | 'trigger';
+  category: 'budget' | 'gap' | 'reachability' | 'trigger' | 'fit';
   signal_type: string;
   evidence_text: string;
   evidence_url?: string;

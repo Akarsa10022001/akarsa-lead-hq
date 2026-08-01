@@ -290,7 +290,7 @@ export default function Radar() {
           location: loc,
           businessType: cat,
           sourceType: sourceId,
-          maxLeads: 25
+          maxLeads: 50
         })
       });
       const data = await res.json();
@@ -331,7 +331,7 @@ export default function Radar() {
             location: loc,
             businessType: source.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
             sourceType: source.id,
-            maxLeads: 20
+            maxLeads: 50
           })
         })
         .then(r => r.json())

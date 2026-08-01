@@ -44,7 +44,7 @@ const DEFAULT_CONFIG: DiscoveryConfig = {
   location: '', // Will be dynamic
   businessType: 'Digital Marketing Agency',
   osmTags: ['amenity=advertising_agency', 'amenity=marketing_agency', 'office=marketing'],
-  maxLeads: parseInt(process.env.SCAN_LIMIT || '20', 10),
+  maxLeads: parseInt(process.env.SCAN_LIMIT || '50', 10),
 };
 
 export async function POST(req: Request) {
@@ -268,7 +268,7 @@ export async function POST(req: Request) {
 
     let newLeadsFound = 0;
     let pagesFetched = 0;
-    const MAX_PAGES = 5;
+    const MAX_PAGES = 10;
 
     // 1. Fetch current cursor state
     const { data: cursorData } = await supabase
@@ -683,6 +683,34 @@ export async function POST(req: Request) {
       }
 
       // ====================================================================
+      // AUTO-INJECT SMART SCORING SIGNALS FROM DISCOVERED DATA
+      // ====================================================================
+      // No website = HIGHEST priority lead (they literally need what we sell)
+      if (!normalized.domain && !has_website) {
+        allEvidence.push({ category: 'gap' as const, signal_type: 'no_website_on_listing', evidence_text: 'Business has NO website — prime candidate for web development services' });
+      }
+      // Established local business (high review count = real business with budget)
+      if (normalized.review_count && normalized.review_count >= 20) {
+        allEvidence.push({ category: 'fit' as const, signal_type: 'established_local', evidence_text: `Established business with ${normalized.review_count} reviews — has budget for services` });
+      }
+      // Strong reputation (high rating = cares about brand)
+      if (normalized.rating && normalized.rating >= 4.0 && normalized.review_count && normalized.review_count >= 10) {
+        allEvidence.push({ category: 'fit' as const, signal_type: 'strong_reputation', evidence_text: `Strong reputation: ${normalized.rating}★ with ${normalized.review_count} reviews — brand-conscious business` });
+      }
+      // New business (few reviews = just opened, actively building presence)
+      if (normalized.review_count !== undefined && normalized.review_count < 10 && normalized.review_count >= 1) {
+        allEvidence.push({ category: 'trigger' as const, signal_type: 'recent_reviews', evidence_text: `New/young business with only ${normalized.review_count} reviews — actively building online presence` });
+      }
+      // Has email = contactable
+      if (discoveredEmail) {
+        allEvidence.push({ category: 'reachability' as const, signal_type: 'has_email', evidence_text: `Contactable via ${emailSource}: ${discoveredEmail}` });
+      }
+      // Has phone = contactable
+      if (normalized.phone) {
+        allEvidence.push({ category: 'reachability' as const, signal_type: 'has_phone', evidence_text: `Contactable via phone: ${normalized.phone}` });
+      }
+
+      // ====================================================================
       // ENRICHMENT & SCORING (Palantir-Grade Composite Intelligence)
       // ====================================================================
       const enriched = await enrichLead({
@@ -701,6 +729,8 @@ export async function POST(req: Request) {
         review_count: normalized.review_count,
         contact_name: normalized.contact_name,
         social_links,
+        // Pass ALL signals for scoring — THIS IS THE KEY FIX
+        lead_signals: allEvidence,
         // Layer 9 data
         intent_score: intentResult.intent_score,
         // Layer 10 data
@@ -784,7 +814,7 @@ export async function POST(req: Request) {
           enriched_at: enriched.enriched_at,
           // Legacy fields
           score_total: enriched.quality_score,
-          score_grade: enriched.quality_score >= 80 ? 'A' : (enriched.quality_score >= 65 ? 'B' : 'C'),
+          score_grade: enriched.intel_grade || (enriched.quality_score >= 50 ? 'A' : (enriched.quality_score >= 35 ? 'B' : (enriched.quality_score >= 15 ? 'C' : 'D'))),
           ai_hook_draft: aiHook,
           opted_out: false
         })

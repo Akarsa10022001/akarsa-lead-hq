@@ -382,7 +382,7 @@ export default function Home() {
                             location: loc,
                             businessType: src === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
                             sourceType: src,
-                            maxLeads: 20
+                            maxLeads: 50
                           })
                         }).then(r => r.json())
                       ));
@@ -425,7 +425,7 @@ export default function Home() {
                               location: loc,
                               businessType: src.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
                               sourceType: src.id,
-                              maxLeads: 25
+                              maxLeads: 50
                             })
                           });
                           const data = await res.json();
