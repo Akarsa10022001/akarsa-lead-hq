@@ -376,7 +376,7 @@ export default function Home() {
                       const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates'];
                       const results = await Promise.allSettled(sources.map(src => {
                         const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 15000);
+                        const timeoutId = setTimeout(() => controller.abort(), 90000);
                         return fetch("/api/cron/discovery", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
@@ -385,7 +385,7 @@ export default function Home() {
                             location: loc,
                             businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
                             sourceType: src,
-                            maxLeads: 50
+                            maxLeads: 10
                           })
                         })
                         .then(async r => {
@@ -445,7 +445,7 @@ export default function Home() {
                               location: loc,
                               businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
                               sourceType: src.id,
-                              maxLeads: 50
+                              maxLeads: 10
                             })
                           });
                           const data = await res.json();

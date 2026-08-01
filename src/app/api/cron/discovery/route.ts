@@ -62,7 +62,10 @@ const DEFAULT_CONFIG: DiscoveryConfig = {
   location: '', // Will be dynamic
   businessType: 'Digital Marketing Agency',
   osmTags: ['amenity=advertising_agency', 'amenity=marketing_agency', 'office=marketing'],
-  maxLeads: parseInt(process.env.SCAN_LIMIT || '50', 10),
+  // FIX: Reduced from 50 to 10. Full enrichment (website scrape + email guess + LLM + social)
+  // takes ~5-30s per lead. 50 leads would take 4-25 minutes, far exceeding Vercel's 60s limit.
+  // 10 leads completes in 20-60s reliably.
+  maxLeads: parseInt(process.env.SCAN_LIMIT || '10', 10),
 };
 
 export async function POST(req: Request) {

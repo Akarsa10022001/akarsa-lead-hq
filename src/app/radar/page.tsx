@@ -283,16 +283,22 @@ export default function Radar() {
 
     setScanningSource(sourceId);
     try {
+      // 90s timeout — full pipeline (website scrape + email guess + LLM) takes 20-60s for 10 leads
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
       const res = await fetch("/api/cron/discovery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           location: loc,
           businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
           sourceType: sourceId,
-          maxLeads: 50
+          maxLeads: 10
         })
       });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.success) {
         alert(`🎉 ${sourceId.toUpperCase()} Scan Complete!\n\n${data.message || `Saved ${data.savedCount || data.leads?.length || 0} leads.`}\n\nCity: ${loc}\nIndustry: ${cat}`);
@@ -305,7 +311,7 @@ export default function Radar() {
         alert(`Scan error: ${data.error || data.message}`);
       }
     } catch (err: any) {
-      alert(`Scan error: ${err.message}`);
+      alert(`Scan error: ${err.name === 'AbortError' ? 'Timed out (90s). The pipeline may still be running — refresh in a minute.' : err.message}`);
     } finally {
       setScanningSource(null);
     }
@@ -325,7 +331,8 @@ export default function Radar() {
     try {
       const promises = SCRAPER_SOURCES.map(source => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        // 90s per agent — full enrichment pipeline needs 20-60s for 10 leads
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
         return fetch("/api/cron/discovery", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -334,7 +341,7 @@ export default function Radar() {
             location: loc,
             businessType: scanIndustry === 'Auto' ? 'Auto' : (source.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat),
             sourceType: source.id,
-            maxLeads: 50
+            maxLeads: 10
           })
         })
         .then(async r => {
