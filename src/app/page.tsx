@@ -341,32 +341,112 @@ export default function Home() {
                 </div>
               </div>
               <div>
+                <button 
+                  onClick={async () => {
+                    if (!confirm("⚡ Launch Parallel Multi-Agent Swarm?\n\nThis will spawn 3 sub-agents concurrently across Google Maps, LinkedIn B2B, and Reddit Intent to scrape high-quality leads in parallel.")) return;
+                    setIsScanning(true);
+                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 3 sub-agents across Google Maps, LinkedIn B2B & Reddit Intent...", type: "success" });
+                    try {
+                      const [res1, res2, res3] = await Promise.allSettled([
+                        fetch("/api/cron/discovery", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ location: scanLocation || 'Indore, India', businessType: scanIndustry === 'Auto' ? 'Dental Clinic' : scanIndustry, sourceType: 'google_maps', maxLeads: 20 })
+                        }).then(r => r.json()),
+                        fetch("/api/cron/discovery", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ location: scanLocation || 'Mumbai, India', businessType: scanIndustry === 'Auto' ? 'Digital Marketing Agency' : scanIndustry, sourceType: 'google_maps', maxLeads: 20 })
+                        }).then(r => r.json()),
+                        fetch("/api/cron/discovery", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ businessType: 'need web dev agency marketing', sourceType: 'reddit_intent' })
+                        }).then(r => r.json())
+                      ]);
+                      setToast({ show: true, title: "🎉 Mega Swarm Complete", desc: "All 3 sub-agents finished scraping leads successfully!", type: "success" });
+                      fetchDashboardData();
+                    } catch (e: any) {
+                      setToast({ show: true, title: "Swarm Error", desc: e.message, type: "error" });
+                    } finally {
+                      setIsScanning(false);
+                    }
+                  }}
+                  disabled={isScanning}
+                  className="w-full py-3.5 mb-3 flex justify-center items-center gap-2 bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black font-heading tracking-wider uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 rounded-md cursor-pointer text-xs"
+                >
+                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Swarm Scraping...</> : "⚡ MEGA LAUNCH ALL 3 SWARMS"}
+                </button>
+
+                <div className="grid grid-cols-1 gap-2 mb-3">
+                  <button
+                    onClick={() => { setScanIndustry("Dental Clinic"); handleManualScan(); }}
+                    disabled={isScanning}
+                    className="w-full py-2 bg-secondary/80 hover:bg-secondary border border-border text-foreground font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 text-left px-3 rounded-md flex items-center justify-between"
+                  >
+                    <span>📍 1. Google Maps Local</span>
+                    <span className="text-[10px] text-muted-foreground">Indore / Clinic</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setScanIndustry("Digital Marketing Agency"); handleManualScan(); }}
+                    disabled={isScanning}
+                    className="w-full py-2 bg-blue-950/40 hover:bg-blue-900/50 border border-blue-800/60 text-blue-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 text-left px-3 rounded-md flex items-center justify-between"
+                  >
+                    <span>💼 2. LinkedIn B2B Agency</span>
+                    <span className="text-[10px] text-blue-300">Mumbai / Agency</span>
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      setIsScanning(true);
+                      setToast({ show: true, title: "Scanning Reddit", desc: "Scraping live hiring posts and RFP intent...", type: "success" });
+                      try {
+                        const res = await fetch("/api/cron/discovery", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ businessType: 'need web dev agency marketing', sourceType: 'reddit_intent' })
+                        });
+                        const data = await res.json();
+                        setToast({ show: true, title: "Reddit Scan Complete", desc: `Found & saved ${data.savedCount || 0} high-intent RFPs.`, type: "success" });
+                        fetchDashboardData();
+                      } catch (e: any) {
+                        setToast({ show: true, title: "Reddit Error", desc: e.message, type: "error" });
+                      } finally {
+                        setIsScanning(false);
+                      }
+                    }}
+                    disabled={isScanning}
+                    className="w-full py-2 bg-orange-950/40 hover:bg-orange-900/50 border border-orange-800/60 text-orange-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 text-left px-3 rounded-md flex items-center justify-between"
+                  >
+                    <span>🔥 3. Reddit & RFP Intent</span>
+                    <span className="text-[10px] text-orange-300">r/hiring / RFPs</span>
+                  </button>
+                </div>
+
                 <input
                   type="text"
                   placeholder="E.g. Dubai, UAE (Leave blank for auto)"
                   value={scanLocation}
                   onChange={(e) => setScanLocation(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm font-mono placeholder:text-muted-foreground"
+                  className="w-full px-4 py-2.5 bg-background border border-border mb-2 focus:outline-none focus:border-primary transition-colors text-xs font-mono placeholder:text-muted-foreground rounded-md"
                 />
                 <select
                   value={scanIndustry}
                   onChange={(e) => setScanIndustry(e.target.value)}
-                  className="w-full px-4 py-3 bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-sm font-mono text-foreground"
+                  className="w-full px-4 py-2.5 bg-background border border-border mb-2 focus:outline-none focus:border-primary transition-colors text-xs font-mono text-foreground rounded-md"
                 >
                   <option value="Auto">Auto (All Industries)</option>
                   {INDUSTRY_MAP.map(ind => (
                     <option key={ind.label} value={ind.label}>{ind.label}</option>
                   ))}
                 </select>
-                <p className="text-[10px] text-muted-foreground font-mono mb-4 uppercase tracking-widest text-center">
-                  Note: Discovers physical locations only (no D2C/e-commerce)
-                </p>
                 <button 
                   onClick={handleManualScan}
                   disabled={isScanning}
-                  className="w-full py-3 flex justify-center items-center gap-2 bg-primary text-primary-foreground font-bold font-heading tracking-wide uppercase hover:bg-primary/90 transition-colors disabled:opacity-50 border border-primary"
+                  className="w-full py-2.5 flex justify-center items-center gap-2 bg-secondary text-secondary-foreground font-bold font-heading tracking-wide uppercase hover:bg-secondary/90 transition-colors disabled:opacity-50 border border-border text-xs rounded-md cursor-pointer"
                 >
-                  {isScanning ? <><Loader2 className="w-5 h-5 animate-spin" /> Scanning...</> : "Launch Manual Scan"}
+                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</> : "Custom Manual Scan"}
                 </button>
               </div>
             </div>
