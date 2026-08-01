@@ -128,10 +128,10 @@ export function calculateIntelScore(lead: any): IntelScore {
   return {
     total,
     grade,
-    contact_score: (lead.domain_mx_verified || lead.email_verified || lead.phone_e164) ? 25 : 0,
+    contact_score: 0,
     digital_score: lead.has_pixel ? 25 : 0,
     intent_score: (lead.runs_ads || lead.has_active_ads) ? 35 : 0,
-    fit_score: 15,
+    fit_score: 0,
     factors,
     grade_color: gradeColors[grade]
   };
