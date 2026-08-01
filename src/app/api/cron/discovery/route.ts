@@ -103,9 +103,9 @@ export async function POST(req: Request) {
       config.location = autoLocations[Math.floor(Math.random() * autoLocations.length)];
     }
 
-    // Auto-Rotation logic for "Auto"
+    // Auto-Rotation logic for "Auto" or "All Industries"
     let category = config.businessType;
-    if (!category || category === 'Auto') {
+    if (!category || category === 'Auto' || category.includes('Auto') || category.includes('All Industries')) {
        const labels = INDUSTRY_MAP.map(i => i.label);
        const { data: allCursors } = await supabase
          .from('discovery_cursor')
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
        if (availableLabels.length > 0) {
            category = availableLabels[Math.floor(Math.random() * availableLabels.length)];
        } else {
-           category = labels[0]; // fallback if all are exhausted
+           category = labels[Math.floor(Math.random() * labels.length)]; // random fallback
        }
        console.log(`[Discovery] Auto-Rotation selected industry: ${category}`);
     }
