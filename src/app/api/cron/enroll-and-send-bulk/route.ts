@@ -37,8 +37,10 @@ export async function POST(req: Request) {
       }
     }
 
+    allLeads = allLeads.filter(l => l.email && l.email.includes('@'));
+
     if (!allLeads || allLeads.length === 0) {
-      return NextResponse.json({ success: true, message: 'No new emailable leads pending bulk send.', sentCount: 0 });
+      return NextResponse.json({ success: true, message: 'No new emailable leads pending bulk send.', sentCount: 0, totalRemainingNew: 0 });
     }
 
     // 2. Fetch signals for evidence text
@@ -63,8 +65,8 @@ export async function POST(req: Request) {
     let sentCount = 0;
     const sentResults = [];
 
-    // Process top 50 leads per cycle for high deliverability
-    const leadsToProcess = allLeads.slice(0, 50);
+    // Process top 25 leads per click for fast, reliable deliverability
+    const leadsToProcess = allLeads.slice(0, 25);
 
     for (const lead of leadsToProcess) {
       const leadEvidences = signalsByLead[lead.id] || [];
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
           text: body
         });
 
-        // Create or fetch target_sequence
+        // Create target_sequence if missing
         const { data: targetSeq } = await supabase
           .from('target_sequences')
           .select('id')
@@ -104,7 +106,7 @@ export async function POST(req: Request) {
           targetId = newTarget?.id;
         }
 
-        // Record touch and update lead status to 'Contacted'
+        // Record touch & update status to 'Contacted'
         await supabase.from('touches').insert({
           target_id: lead.id,
           channel: 'email',
