@@ -369,11 +369,11 @@ export default function Home() {
                   onClick={async () => {
                     const loc = scanLocation.trim() || 'Indore, India';
                     const cat = scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
-                    if (!confirm(`⚡ MEGA LAUNCH 6 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 6 scrapers will run in parallel.`)) return;
+                    if (!confirm(`⚡ MEGA LAUNCH 7 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 7 scrapers will run in parallel.`)) return;
                     setIsScanning(true);
-                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 6 sub-agents across all sources...", type: "success" });
+                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 7 sub-agents across all sources...", type: "success" });
                     try {
-                      const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates'];
+                      const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates', 'meta_ads'];
                       const results = await Promise.allSettled(sources.map(src => {
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 90000);
@@ -429,6 +429,7 @@ export default function Home() {
                     { id: 'reddit_intent', label: '🔥 Reddit & RFP Intent', color: 'bg-orange-950/40 hover:bg-orange-900/50 border-orange-800/60 text-orange-200' },
                     { id: 'gdelt_news', label: '📰 GDELT News Triggers', color: 'bg-rose-950/40 hover:bg-rose-900/50 border-rose-800/60 text-rose-200' },
                     { id: 'opencorporates', label: '🏢 OpenCorporates', color: 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-800/60 text-cyan-200' },
+                    { id: 'meta_ads', label: '📣 Meta Ads', color: 'bg-blue-950/40 hover:bg-blue-900/50 border-blue-800/60 text-blue-200' },
                   ].map(src => (
                     <button
                       key={src.id}

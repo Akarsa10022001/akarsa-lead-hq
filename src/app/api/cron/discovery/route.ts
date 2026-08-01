@@ -290,6 +290,47 @@ export async function POST(req: Request) {
       });
     }
 
+    // ── Meta Ads Library (7th Launch Pad — Highest Intent Source) ──
+    // Businesses actively running Meta/Facebook/Instagram ads = proven marketing budget.
+    if (sourceType === 'meta_ads') {
+      console.log(`[Discovery] Running Meta Ad Library scan for "${category}" in "${config.location}"...`);
+      const metaConnector = new MetaAdLibraryConnector();
+      const searchRes = await metaConnector.search({ keyword: category, location: config.location });
+      const adResults = (searchRes.results || []).slice(0, 20);
+      let savedCount = 0;
+      for (const rawAd of adResults) {
+        const normalized = metaConnector.normalize(rawAd);
+        const companyName = normalized.company_name;
+        if (!companyName || companyName === 'Unknown Page' || companyName === 'Unknown Business') continue;
+        const { data: existing } = await supabase.from('leads').select('id').eq('company_name', companyName).maybeSingle();
+        if (!existing) {
+          const hasDomain = !!normalized.domain;
+          const quality_score = hasDomain ? 45 : 30;
+          await supabase.from('leads').insert({
+            company_name: companyName,
+            industry: normalizeCanonicalIndustry(category),
+            location: config.location,
+            domain: normalized.domain || null,
+            source_url: normalized.source_url || '',
+            status: 'New',
+            ai_hook_draft: `Currently running Meta/Instagram ads — confirmed marketing budget. Opportunity to upgrade their campaign strategy.`,
+            quality_score,
+            score_total: quality_score,
+            score_grade: quality_score >= 35 ? 'B' : 'C',
+            agency_fit_score: 80,
+            contactability_score: hasDomain ? 50 : 20
+          });
+          savedCount++;
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        message: `Meta Ads Library scan finished. Found ${adResults.length} active advertisers, saved ${savedCount} high-budget leads.`,
+        savedCount,
+        stats: { duration_ms: Date.now() - startTime }
+      });
+    }
+
     let rawLeads: any[] = [];
     let primarySource = sourceType || 'google_places';
 
