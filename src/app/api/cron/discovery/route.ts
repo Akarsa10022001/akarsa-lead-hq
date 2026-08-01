@@ -7,6 +7,7 @@ import { CustomTechConnector } from '@/lib/connectors/tech';
 import { WhoisConnector } from '@/lib/connectors/whois';
 import { MetaAdLibraryConnector } from '@/lib/connectors/meta';
 import { DuckDuckGoLinkedInConnector } from '@/lib/connectors/duckduckgo-linkedin';
+import { CommunityIntentConnector } from '@/lib/connectors/reddit-intent';
 import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scraper';
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
@@ -107,6 +108,50 @@ export async function POST(req: Request) {
     // ====================================================================
     // STAGE 1: Discover businesses with Pagination Loop
     // ====================================================================
+    // Check if specialized sourceType is requested (Reddit Intent / LinkedIn B2B)
+    const sourceType = (config as any).sourceType || 'google_maps';
+
+    if (sourceType === 'reddit_intent') {
+      console.log(`[Discovery] Running Reddit & Community Intent Scanner for query: "${category}"...`);
+      const redditConnector = new CommunityIntentConnector();
+      const intentLeads = await redditConnector.search(category);
+
+      let savedCount = 0;
+      for (const item of intentLeads) {
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('company_name', item.company_name)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from('leads').insert({
+            company_name: item.company_name,
+            contact_name: item.contact_name,
+            industry: item.industry,
+            location: item.location,
+            source_url: item.source_url,
+            status: 'New',
+            email: item.email || null,
+            domain: item.domain || null,
+            ai_hook_draft: item.evidence_text,
+            quality_score: 85,
+            agency_fit_score: 90,
+            contactability_score: item.email ? 90 : 50,
+            score_grade: 'A'
+          });
+          savedCount++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Reddit & Community Intent Scan finished. Found ${intentLeads.length} posts, saved ${savedCount} high-intent lead opportunities.`,
+        savedCount,
+        stats: { duration_ms: Date.now() - startTime }
+      });
+    }
+
     let rawLeads: any[] = [];
     let primarySource = 'google_places';
 
