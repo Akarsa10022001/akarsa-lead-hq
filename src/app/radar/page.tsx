@@ -225,6 +225,31 @@ export default function Radar() {
             </div>
             
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <button
+                onClick={async () => {
+                  if (confirm(`Trigger 1-Click Auto-Outreach across all emailable New leads? This will generate evidence-based personalized emails and send them automatically via your verified Gmail SMTP.`)) {
+                    setLoading(true);
+                    try {
+                      const res = await fetch("/api/cron/enroll-and-send-bulk", { method: "POST" });
+                      const data = await res.json();
+                      if (data.success) {
+                        alert(`🎉 1-Click Outreach Success! Dispatched ${data.sentCount} personalized emails via Gmail. ${data.totalRemainingNew} remaining.`);
+                        window.location.reload();
+                      } else {
+                        alert(`Bulk send error: ${data.error}`);
+                      }
+                    } catch (e: any) {
+                      alert(`Bulk send error: ${e.message}`);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }
+                }}
+                disabled={loading}
+                className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" /> ⚡ 1-Click Auto-Send All ({filteredLeads.filter(l => l.status === 'New').length})
+              </button>
               <div className="relative w-full sm:w-auto">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input 
