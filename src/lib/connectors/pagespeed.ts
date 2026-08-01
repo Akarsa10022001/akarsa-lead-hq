@@ -70,7 +70,7 @@ export class PageSpeedConnector implements Connector {
 
     if (rawRecord && rawRecord.perfScore < 50) {
       evidence.push({
-        category: 'digital',
+        category: 'gap',
         signal_type: 'slow_mobile_site',
         evidence_text: `Mobile PageSpeed ${rawRecord.perfScore}/100, largest contentful paint ${rawRecord.lcpDisplay}`
       });
