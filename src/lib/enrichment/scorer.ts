@@ -91,9 +91,18 @@ export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
   if (Array.isArray(signalList) && signalList.length > 0) {
     for (const s of signalList) {
       const type = s.signal_type;
-      if (type === 'slow_mobile_site' && !factors.slow_mobile_site) {
+      if (type === 'no_website_on_listing' && !factors.no_website_on_listing) {
+        score += 25;
+        factors.no_website_on_listing = 25;
+      } else if (type === 'slow_mobile_site' && !factors.slow_mobile_site) {
         score += 25;
         factors.slow_mobile_site = 25;
+      } else if (type === 'established_local' && !factors.established_local) {
+        score += 15;
+        factors.established_local = 15;
+      } else if (type === 'strong_reputation' && !factors.strong_reputation) {
+        score += 15;
+        factors.strong_reputation = 15;
       } else if ((type === 'runs_ads' || type === 'active_ads') && !factors.runs_ads) {
         score += 35;
         factors.runs_ads = 35;
@@ -112,7 +121,13 @@ export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
 
   // Cap max score at 100
   const total = Math.min(score, 100);
-  const grade = total >= 80 ? 'A' : (total >= 65 ? 'B' : (total >= 40 ? 'C' : 'D'));
+  
+  // Rebalanced Grade Thresholds: Achievable with free local signals
+  // Grade A (>= 50): 2-3 strong signals (e.g. no_website + established_local + strong_reputation = 55 pts)
+  // Grade B (35-49): 2 signals (e.g. no_website + established_local = 40 pts)
+  // Grade C (15-34): 1 signal (e.g. established_local = 15 pts)
+  // Grade D (< 15): Baseline
+  const grade = total >= 50 ? 'A' : (total >= 35 ? 'B' : (total >= 15 ? 'C' : 'D'));
   const gradeColors: Record<string, string> = {
     'A': '#22c55e',
     'B': '#3b82f6',
@@ -123,9 +138,9 @@ export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
   return {
     total,
     grade,
-    contact_score: 0,
-    digital_score: factors.has_pixel || 0,
-    intent_score: (factors.runs_ads || factors.slow_mobile_site) ? 25 : 0,
+    contact_score: factors.no_website_on_listing ? 25 : 0,
+    digital_score: factors.has_pixel || factors.slow_mobile_site || 0,
+    intent_score: (factors.established_local || factors.strong_reputation) ? 15 : 0,
     fit_score: 0,
     factors,
     grade_color: gradeColors[grade]
