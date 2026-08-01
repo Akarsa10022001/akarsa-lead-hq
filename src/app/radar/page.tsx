@@ -207,6 +207,44 @@ export default function Radar() {
   };
 
 
+  const [waQueue, setWaQueue] = useState<any[]>([]);
+  const [waIndex, setWaIndex] = useState(0);
+  const [waModalOpen, setWaModalOpen] = useState(false);
+
+  const startWaQueue = () => {
+    const phoneLeads = filteredLeads.filter(l => l.status === 'New' && l.phone).slice(0, 20);
+    if (phoneLeads.length === 0) {
+      alert("No new phone leads available for WhatsApp.");
+      return;
+    }
+    setWaQueue(phoneLeads);
+    setWaIndex(0);
+    setWaModalOpen(true);
+  };
+
+  const handleSendCurrentWa = async () => {
+    if (waIndex >= waQueue.length) return;
+    const currentLead = waQueue[waIndex];
+    const cleanPhone = currentLead.phone.replace(/\D/g, '');
+    const text = encodeURIComponent(`Hi ${currentLead.company_name} Team! Saw your profile in ${currentLead.geo || currentLead.location || 'your area'}. We help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat?`);
+    
+    // Open in WhatsApp Web
+    window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${text}`, '_blank');
+
+    // Mark as Contacted
+    await supabase.from('leads').update({ status: 'Contacted' }).eq('id', currentLead.id);
+
+    // Remove from local leads state so it immediately vanishes from Radar table
+    setLeads(prev => prev.map(l => l.id === currentLead.id ? { ...l, status: 'Contacted' } : l));
+
+    if (waIndex + 1 < waQueue.length) {
+      setWaIndex(waIndex + 1);
+    } else {
+      alert("🎉 WhatsApp Queue Complete! All batch leads processed and moved to Contacted.");
+      setWaModalOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -252,30 +290,11 @@ export default function Radar() {
               </button>
 
               <button
-                onClick={async () => {
-                  const phoneLeads = filteredLeads.filter(l => l.status === 'New' && l.phone).slice(0, 10);
-                  if (phoneLeads.length === 0) {
-                    alert("No new phone leads available.");
-                    return;
-                  }
-
-                  if (confirm(`Open 1-Click WhatsApp Web batch for top ${phoneLeads.length} leads directly in web.whatsapp.com? This will pre-fill personalized evidence copy and mark them as Contacted so they move off Lead Radar.`)) {
-                    for (const lead of phoneLeads) {
-                      const cleanPhone = lead.phone.replace(/\D/g, '');
-                      const text = encodeURIComponent(`Hi ${lead.company_name} Team! Saw your profile in ${lead.geo || lead.location || 'your area'}. We help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat?`);
-                      window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${text}`, '_blank');
-                      
-                      // Update lead status to Contacted
-                      await supabase.from('leads').update({ status: 'Contacted' }).eq('id', lead.id);
-                    }
-                    alert(`Opened ${phoneLeads.length} WhatsApp Web tabs and moved leads to Contacted status!`);
-                    window.location.reload();
-                  }
-                }}
+                onClick={startWaQueue}
                 disabled={loading}
                 className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white hover:bg-emerald-700 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
               >
-                <MessageSquare className="w-4 h-4" /> 📲 1-Click Open WhatsApp Web Batch ({filteredLeads.filter(l => l.status === 'New' && l.phone).length})
+                <MessageSquare className="w-4 h-4" /> 📲 WhatsApp Web Queue Runner ({filteredLeads.filter(l => l.status === 'New' && l.phone).length})
               </button>
               <div className="relative w-full sm:w-auto">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -446,6 +465,59 @@ export default function Radar() {
             </table>
           </div>
         </motion.div>
+
+        {/* WHATSAPP WEB QUEUE RUNNER MODAL */}
+        <AnimatePresence>
+          {waModalOpen && waQueue.length > 0 && waIndex < waQueue.length && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            >
+              <div className="bg-card border border-border max-w-lg w-full p-6 shadow-2xl rounded-none">
+                <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                  <div className="flex items-center gap-2 text-emerald-500 font-bold uppercase tracking-widest text-sm">
+                    <MessageSquare className="w-4 h-4" /> WhatsApp Web Queue Runner
+                  </div>
+                  <span className="text-xs font-mono bg-secondary px-2 py-1">
+                    Lead {waIndex + 1} of {waQueue.length}
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-bold text-lg">{waQueue[waIndex].company_name}</h3>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      Phone: {waQueue[waIndex].phone} | Location: {waQueue[waIndex].geo || waQueue[waIndex].location || 'N/A'}
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-secondary/50 border border-border text-xs font-mono leading-relaxed">
+                    <p className="font-bold text-primary mb-1">Pre-filled WhatsApp Copy:</p>
+                    Hi {waQueue[waIndex].company_name} Team! Saw your profile in {waQueue[waIndex].geo || waQueue[waIndex].location || 'your area'}. We help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat?
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <button
+                      onClick={() => setWaModalOpen(false)}
+                      className="px-4 py-2 border border-border text-xs uppercase tracking-widest hover:bg-secondary transition-colors"
+                    >
+                      Close Queue
+                    </button>
+                    
+                    <button
+                      onClick={handleSendCurrentWa}
+                      className="flex-1 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      <Send className="w-4 h-4" /> Open in WhatsApp Web & Next ➔
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
