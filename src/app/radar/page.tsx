@@ -603,7 +603,8 @@ export default function Radar() {
                     <td colSpan={7} className="p-4 text-center text-muted-foreground font-mono">No leads found matching your filters.</td>
                   </tr>
                 ) : filteredLeads.map((lead, idx) => {
-                  const grade = lead.intel_grade || (lead.quality_score >= 80 ? 'A' : lead.quality_score >= 60 ? 'B' : lead.quality_score >= 40 ? 'C' : 'D');
+                  const score = lead.score_total || lead.quality_score || 0;
+                  const grade = lead.score_grade || lead.intel_grade || (score >= 50 ? 'A' : (score >= 35 ? 'B' : (score >= 15 ? 'C' : 'D')));
                   const gradeColors: Record<string, string> = { A: 'bg-green-500/10 text-green-500 border-green-500/30', B: 'bg-blue-500/10 text-blue-500 border-blue-500/30', C: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30', D: 'bg-red-500/10 text-red-500 border-red-500/30' };
                   
                   return (
@@ -627,7 +628,7 @@ export default function Radar() {
                         <span className={`w-8 h-8 flex items-center justify-center text-sm font-black border rounded-lg ${gradeColors[grade] || gradeColors.D}`}>
                           {grade}
                         </span>
-                        <span className="text-[9px] text-muted-foreground font-mono">{lead.quality_score || 0}/100</span>
+                        <span className="text-[9px] text-muted-foreground font-mono">{score}/100</span>
                       </div>
                     </td>
                     <td className="p-4">

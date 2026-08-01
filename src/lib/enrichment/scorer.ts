@@ -137,6 +137,28 @@ export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
     }
   }
 
+  // Base contactability & business quality factors
+  if (lead.email && lead.email_quality !== 'invalid_scraped' && lead.email_quality !== 'bounced') {
+    score += 20;
+    factors.has_valid_email = 20;
+  }
+  if (lead.phone || lead.phone_e164) {
+    score += 20;
+    factors.has_valid_phone = 20;
+  }
+  if (lead.has_website || lead.website || lead.social_links?.website) {
+    score += 15;
+    factors.has_website = 15;
+  }
+  if (lead.email_verified || lead.domain_mx_verified) {
+    score += 10;
+    factors.mx_verified = 10;
+  }
+  if (lead.rating && parseFloat(lead.rating) >= 4.0) {
+    score += 15;
+    factors.high_rating = 15;
+  }
+
   // Cap max score at 100
   const total = Math.min(score, 100);
   
