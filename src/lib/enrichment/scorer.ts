@@ -81,38 +81,33 @@ export interface IntelScore {
   grade_color: string;   // For UI rendering
 }
 
-export function calculateIntelScore(lead: any): IntelScore {
+export function calculateIntelScore(lead: any, signals?: any[]): IntelScore {
   let score = 0;
   const factors: Record<string, number> = {};
 
-  // 1. Runs Meta / Google Ads (+35)
-  if (lead.runs_ads || lead.has_active_ads) {
-    score += 35;
-    factors.runs_ads = 35;
-  }
+  // Extract signals from lead_signals array (passed or attached to lead)
+  const signalList = signals || lead.lead_signals || [];
 
-  // 2. Has Meta Pixel installed (+25)
-  if (lead.has_pixel) {
-    score += 25;
-    factors.has_pixel = 25;
-  }
-
-  // 3. Active Instagram with low engagement (+20)
-  if (lead.ig_active_low_engagement) {
-    score += 20;
-    factors.ig_active_low_engagement = 20;
-  }
-
-  // 4. Recent negative reviews with active owner response (+15)
-  if (lead.recent_reviews || (lead.rating && lead.rating < 3.5 && lead.review_count > 10)) {
-    score += 15;
-    factors.recent_reviews = 15;
-  }
-
-  // 5. Weak / slow website (+10)
-  if (lead.weak_website || lead.website_status === 'weak' || lead.website_status === 'slow') {
-    score += 10;
-    factors.weak_website = 10;
+  if (Array.isArray(signalList) && signalList.length > 0) {
+    for (const s of signalList) {
+      const type = s.signal_type;
+      if (type === 'slow_mobile_site' && !factors.slow_mobile_site) {
+        score += 25;
+        factors.slow_mobile_site = 25;
+      } else if ((type === 'runs_ads' || type === 'active_ads') && !factors.runs_ads) {
+        score += 35;
+        factors.runs_ads = 35;
+      } else if (type === 'has_pixel' && !factors.has_pixel) {
+        score += 25;
+        factors.has_pixel = 25;
+      } else if (type === 'ig_active_low_engagement' && !factors.ig_active_low_engagement) {
+        score += 20;
+        factors.ig_active_low_engagement = 20;
+      } else if (type === 'recent_reviews' && !factors.recent_reviews) {
+        score += 15;
+        factors.recent_reviews = 15;
+      }
+    }
   }
 
   // Cap max score at 100
@@ -129,8 +124,8 @@ export function calculateIntelScore(lead: any): IntelScore {
     total,
     grade,
     contact_score: 0,
-    digital_score: lead.has_pixel ? 25 : 0,
-    intent_score: (lead.runs_ads || lead.has_active_ads) ? 35 : 0,
+    digital_score: factors.has_pixel || 0,
+    intent_score: (factors.runs_ads || factors.slow_mobile_site) ? 25 : 0,
     fit_score: 0,
     factors,
     grade_color: gradeColors[grade]
