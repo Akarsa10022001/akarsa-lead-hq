@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
+import nodemailer from 'nodemailer';
 
 export async function GET() {
   try {
@@ -83,7 +84,7 @@ export async function PATCH(req: Request) {
   }
 }
 
-// Bulk Approvals
+// Bulk Approvals & Immediate Gmail Dispatch
 export async function POST(req: Request) {
   try {
     const { ids, approved_by } = await req.json();
@@ -92,6 +93,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing array of ids' }, { status: 400 });
     }
 
+    // 1. Mark as approved
     const { data: approvedItems, error } = await supabase
       .from('touch_queue')
       .update({
@@ -100,24 +102,74 @@ export async function POST(req: Request) {
         approved_by: approved_by || 'system_operator'
       })
       .in('id', ids)
-      .select('target_id, step_number');
+      .select('id, target_id, channel, touch_type, draft_body, step_number');
 
     if (error) throw error;
 
-    // Enrollment Gate: Flip any step 1s to active
+    // 2. Immediately dispatch approved items via Gmail SMTP
+    const user = process.env.GMAIL_USER || 'beakarsa@gmail.com';
+    const pass = process.env.GMAIL_APP_PASSWORD || 'kjdoqgnjdgcvmnrx';
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass }
+    });
+
+    let dispatchedCount = 0;
+
     if (approvedItems && approvedItems.length > 0) {
-      const step1TargetIds = approvedItems.filter(item => item.step_number === 1).map(item => item.target_id);
-      
-      if (step1TargetIds.length > 0) {
-        await supabase
-          .from('target_sequences')
-          .update({ status: 'active' })
-          .in('target_id', step1TargetIds)
-          .eq('status', 'pending_enrollment');
+      for (const item of approvedItems) {
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('id, company_name, email')
+          .eq('id', item.target_id)
+          .single();
+
+        if (!lead || !lead.email || !lead.email.includes('@')) continue;
+
+        let content = item.draft_body || '';
+        let subject = `Outreach from Akarsa for ${lead.company_name}`;
+
+        const subjectRegex = /^Subject:\s*(.+)$/im;
+        const match = content.match(subjectRegex);
+        if (match) {
+          subject = match[1].trim();
+          content = content.replace(subjectRegex, '').trim();
+        }
+
+        try {
+          const info = await transporter.sendMail({
+            from: `"Akarsa" <${user}>`,
+            to: lead.email,
+            subject,
+            text: content
+          });
+
+          await supabase.from('touches').insert({
+            target_id: item.target_id,
+            channel: item.channel || 'email',
+            touch_type: item.touch_type || 'initial_outreach',
+            direction: 'outbound',
+            notes: `Automated Gmail SMTP Send: ${subject}`,
+            queue_id: item.id,
+            provider_msg_id: info.messageId,
+            send_status: 'sent'
+          });
+
+          await supabase.from('touch_queue').update({ status: 'sent' }).eq('id', item.id);
+          await supabase.from('leads').update({ status: 'Contacted' }).eq('id', lead.id);
+
+          dispatchedCount++;
+        } catch (sendErr: any) {
+          console.error(`Gmail send error for ${lead.email}:`, sendErr.message);
+        }
       }
     }
 
-    return NextResponse.json({ success: true, message: `Successfully approved ${ids.length} items.` });
+    return NextResponse.json({
+      success: true,
+      message: `Successfully approved ${ids.length} items and dispatched ${dispatchedCount} live emails to Gmail Sent box.`
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
