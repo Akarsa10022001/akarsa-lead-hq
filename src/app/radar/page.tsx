@@ -285,7 +285,10 @@ export default function Radar() {
                       const data = await res.json();
                       if (data.success) {
                         alert(`🎉 1-Click Outreach Success! Dispatched ${data.sentCount} personalized emails via Gmail. ${data.totalRemainingNew} remaining.`);
-                        window.location.reload();
+                        
+                        // Dynamically mark sent leads as 'Contacted' in memory so button count & table drop immediately
+                        const sentIds = new Set((data.sentResults || []).map((r: any) => r.id));
+                        setLeads(prev => prev.map(l => sentIds.has(l.id) ? { ...l, status: 'Contacted' } : l));
                       } else {
                         alert(`Bulk send error: ${data.error}`);
                       }
@@ -299,7 +302,7 @@ export default function Radar() {
                 disabled={loading}
                 className="flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
               >
-                <Send className="w-4 h-4" /> ⚡ 1-Click Email Auto-Send ({filteredLeads.filter(l => l.status === 'New' && l.email).length})
+                <Send className="w-4 h-4" /> ⚡ 1-Click Email Auto-Send ({leads.filter(l => (l.status || '').toLowerCase() === 'new' && l.email && l.email.includes('@')).length})
               </button>
 
               <button
@@ -307,7 +310,7 @@ export default function Radar() {
                 disabled={loading}
                 className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white hover:bg-emerald-700 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
               >
-                <MessageSquare className="w-4 h-4" /> 📲 WhatsApp Web Queue Runner ({filteredLeads.filter(l => l.status === 'New' && l.phone).length})
+                <MessageSquare className="w-4 h-4" /> 📲 WhatsApp Web Queue Runner ({leads.filter(l => (l.status || '').toLowerCase() === 'new' && l.phone && l.phone.length > 5).length})
               </button>
               <div className="relative w-full sm:w-auto">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
