@@ -260,19 +260,28 @@ export default function Radar() {
 
   const [scanningSource, setScanningSource] = useState<string | null>(null);
   const [megaSwarmActive, setMegaSwarmActive] = useState(false);
-  const [swarmLogs, setSwarmLogs] = useState<{ agent1: string; agent2: string; agent3: string }>({
-    agent1: 'Idle',
-    agent2: 'Idle',
-    agent3: 'Idle'
-  });
+  const [swarmStatuses, setSwarmStatuses] = useState<Record<string, string>>({});
+  const [scanLocation, setScanLocation] = useState('');
+  const [scanIndustry, setScanIndustry] = useState('Auto');
 
-  const handleLaunchScan = async (sourceType: 'google_maps' | 'linkedin_b2b' | 'reddit_intent', defaultLocation: string, defaultType: string) => {
-    const loc = prompt(`Enter City / Location for ${sourceType.toUpperCase()} Scan:`, defaultLocation);
-    if (loc === null) return;
-    const cat = prompt(`Enter Industry / Search Keyword:`, defaultType);
-    if (cat === null) return;
+  // All available scraping sources
+  const SCRAPER_SOURCES = [
+    { id: 'google_maps', label: '📍 Google Maps API', desc: 'Places API with ratings, phone, website', color: 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-800/60 text-emerald-200', dotColor: 'bg-emerald-400' },
+    { id: 'foursquare', label: '🟣 Foursquare Places', desc: 'Venue discovery with categories & tips', color: 'bg-purple-950/40 hover:bg-purple-900/50 border-purple-800/60 text-purple-200', dotColor: 'bg-purple-400' },
+    { id: 'osm', label: '🗺️ OSM / Nominatim', desc: 'Free open-source map POI data', color: 'bg-sky-950/40 hover:bg-sky-900/50 border-sky-800/60 text-sky-200', dotColor: 'bg-sky-400' },
+    { id: 'reddit_intent', label: '🔥 Reddit & RFP Intent', desc: 'Live hiring posts from r/forhire, r/smallbusiness', color: 'bg-orange-950/40 hover:bg-orange-900/50 border-orange-800/60 text-orange-200', dotColor: 'bg-orange-400' },
+    { id: 'gdelt_news', label: '📰 GDELT News Triggers', desc: 'Global news signals & company mentions', color: 'bg-rose-950/40 hover:bg-rose-900/50 border-rose-800/60 text-rose-200', dotColor: 'bg-rose-400' },
+    { id: 'opencorporates', label: '🏢 OpenCorporates Registry', desc: 'Company registrations & filings', color: 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-800/60 text-cyan-200', dotColor: 'bg-cyan-400' },
+  ];
 
-    setScanningSource(sourceType);
+  const getResolvedLocation = () => scanLocation.trim() || 'Indore, India';
+  const getResolvedIndustry = () => scanIndustry === 'Auto' ? 'Dental & Medical Clinics' : scanIndustry;
+
+  const handleLaunchScan = async (sourceId: string) => {
+    const loc = getResolvedLocation();
+    const cat = getResolvedIndustry();
+
+    setScanningSource(sourceId);
     try {
       const res = await fetch("/api/cron/discovery", {
         method: "POST",
@@ -280,21 +289,20 @@ export default function Radar() {
         body: JSON.stringify({
           location: loc,
           businessType: cat,
-          sourceType: sourceType,
-          maxLeads: 20
+          sourceType: sourceId,
+          maxLeads: 25
         })
       });
       const data = await res.json();
       if (data.success) {
-        alert(`🎉 ${sourceType.toUpperCase()} Scan Success! ${data.message}`);
-        // Add new leads to state
+        alert(`🎉 ${sourceId.toUpperCase()} Scan Complete!\n\n${data.message || `Saved ${data.savedCount || data.leads?.length || 0} leads.`}\n\nCity: ${loc}\nIndustry: ${cat}`);
         if (data.leads && data.leads.length > 0) {
           setLeads(prev => [...data.leads, ...prev]);
         } else {
           window.location.reload();
         }
       } else {
-        alert(`Scan error: ${data.error}`);
+        alert(`Scan error: ${data.error || data.message}`);
       }
     } catch (err: any) {
       alert(`Scan error: ${err.message}`);
@@ -304,59 +312,54 @@ export default function Radar() {
   };
 
   const handleMegaLaunchSwarm = async () => {
-    if (!confirm("⚡ Launch Parallel Multi-Agent Swarm?\n\nThis will spawn 3 sub-agents concurrently across Google Maps, LinkedIn B2B, and Reddit Intent to scrape high-quality leads in parallel.")) return;
+    const loc = getResolvedLocation();
+    const cat = getResolvedIndustry();
+
+    if (!confirm(`⚡ MEGA LAUNCH — Parallel Multi-Agent Swarm\n\nThis will spawn 6 sub-agents scraping in parallel:\n\n📍 Google Maps API\n🟣 Foursquare Places\n🗺️ OSM / Nominatim\n🔥 Reddit & RFP Intent\n📰 GDELT News Triggers\n🏢 OpenCorporates Registry\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 6 agents will run concurrently, each scraping from a different source.`)) return;
 
     setMegaSwarmActive(true);
-    setSwarmLogs({
-      agent1: '🤖 Sub-Agent 1: Scanning Google Maps Local...',
-      agent2: '🤖 Sub-Agent 2: Scanning LinkedIn B2B Agencies...',
-      agent3: '🤖 Sub-Agent 3: Scanning Reddit & RFP Intent...'
-    });
+    const initialStatuses: Record<string, string> = {};
+    SCRAPER_SOURCES.forEach(s => { initialStatuses[s.id] = '🤖 Scanning...'; });
+    setSwarmStatuses(initialStatuses);
 
     try {
-      // Launch 3 Sub-Agents concurrently in parallel
-      const [res1, res2, res3] = await Promise.allSettled([
+      const promises = SCRAPER_SOURCES.map(source =>
         fetch("/api/cron/discovery", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ location: 'Indore, India', businessType: 'Dental Clinic', sourceType: 'google_maps', maxLeads: 20 })
-        }).then(r => r.json()),
+          body: JSON.stringify({
+            location: loc,
+            businessType: source.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
+            sourceType: source.id,
+            maxLeads: 20
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          setSwarmStatuses(prev => ({ ...prev, [source.id]: data.success ? `✅ ${data.savedCount || data.leads?.length || data.pipeline_log?.inserted_to_db || 0} leads found` : `❌ ${data.error || 'Failed'}` }));
+          return { sourceId: source.id, ...data };
+        })
+        .catch(err => {
+          setSwarmStatuses(prev => ({ ...prev, [source.id]: `❌ Error: ${err.message}` }));
+          return { sourceId: source.id, success: false };
+        })
+      );
 
-        fetch("/api/cron/discovery", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ location: 'Mumbai, India', businessType: 'Digital Marketing Agency', sourceType: 'google_maps', maxLeads: 20 })
-        }).then(r => r.json()),
-
-        fetch("/api/cron/discovery", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ businessType: 'need web dev agency marketing', sourceType: 'reddit_intent' })
-        }).then(r => r.json())
-      ]);
+      const results = await Promise.allSettled(promises);
 
       let allNewLeads: any[] = [];
-      let summaryText = "";
+      let summaryLines: string[] = [];
 
-      if (res1.status === 'fulfilled' && res1.value?.success) {
-        const count = res1.value.leads?.length || 0;
-        summaryText += `📍 Google Maps Sub-Agent: Discovered ${count} leads.\n`;
-        if (res1.value.leads) allNewLeads = [...allNewLeads, ...res1.value.leads];
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value?.success) {
+          const count = result.value.savedCount || result.value.leads?.length || result.value.pipeline_log?.inserted_to_db || 0;
+          const src = SCRAPER_SOURCES.find(s => s.id === result.value.sourceId);
+          summaryLines.push(`${src?.label || result.value.sourceId}: ${count} leads`);
+          if (result.value.leads) allNewLeads = [...allNewLeads, ...result.value.leads];
+        }
       }
 
-      if (res2.status === 'fulfilled' && res2.value?.success) {
-        const count = res2.value.leads?.length || 0;
-        summaryText += `💼 LinkedIn Agency Sub-Agent: Discovered ${count} leads.\n`;
-        if (res2.value.leads) allNewLeads = [...allNewLeads, ...res2.value.leads];
-      }
-
-      if (res3.status === 'fulfilled' && res3.value?.success) {
-        const count = res3.value.savedCount || res3.value.leads?.length || 0;
-        summaryText += `🔥 Reddit Intent Sub-Agent: Discovered ${count} high-intent RFPs.`;
-        if (res3.value.leads) allNewLeads = [...allNewLeads, ...res3.value.leads];
-      }
-
-      alert(`🎉 MEGA SWARM LAUNCH COMPLETE!\n\n${summaryText}\n\nAll newly scraped leads have been added to your Radar table live!`);
+      alert(`🎉 MEGA SWARM COMPLETE!\n\nCity: ${loc} | Industry: ${cat}\n\n${summaryLines.join('\n') || 'All agents finished.'}\n\nTotal new leads injected: ${allNewLeads.length}`);
 
       if (allNewLeads.length > 0) {
         setLeads(prev => [...allNewLeads, ...prev]);
@@ -367,7 +370,9 @@ export default function Radar() {
       alert(`Mega launch error: ${e.message}`);
     } finally {
       setMegaSwarmActive(false);
-      setSwarmLogs({ agent1: 'Completed', agent2: 'Completed', agent3: 'Completed' });
+      const doneStatuses: Record<string, string> = {};
+      SCRAPER_SOURCES.forEach(s => { doneStatuses[s.id] = '✅ Done'; });
+      setSwarmStatuses(doneStatuses);
     }
   };
 
@@ -399,7 +404,6 @@ export default function Radar() {
                       if (data.success) {
                         alert(`🎉 1-Click Outreach Success! Dispatched ${data.sentCount} personalized emails via Gmail. ${data.totalRemainingNew} remaining.`);
                         
-                        // Dynamically mark sent leads as 'Contacted' in memory so button count & table drop immediately
                         const sentIds = new Set((data.sentResults || []).map((r: any) => r.id));
                         setLeads(prev => prev.map(l => sentIds.has(l.id) ? { ...l, status: 'Contacted' } : l));
                       } else {
@@ -428,58 +432,112 @@ export default function Radar() {
             </div>
           </div>
 
-          {/* MULTI-SOURCE LAUNCHPAD SCRAPER BAR WITH MEGA LAUNCH */}
-          <div className="bg-card border border-border/80 p-5 mb-8 rounded-xl shadow-md relative overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <span className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-1.5 font-bold">
-                  <Target className="w-4 h-4 text-primary animate-pulse" /> ⚡ PARALLEL MULTI-AGENT SCRAPER SWARM
-                </span>
-                <p className="text-xs text-muted-foreground mt-0.5">Click Mega Launch to trigger 3 sub-agents scraping Google Maps, LinkedIn B2B, and Reddit Intent simultaneously.</p>
+          {/* ═══════════════ MULTI-SOURCE SCRAPER COMMAND CENTER ═══════════════ */}
+          <div className="bg-card border border-border/80 p-6 mb-8 rounded-xl shadow-lg relative overflow-hidden">
+            {/* Decorative gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-transparent to-accent/3 pointer-events-none" />
+            
+            <div className="relative z-10">
+              {/* Header + Mega Launch */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+                <div>
+                  <span className="text-sm font-mono uppercase tracking-widest text-primary flex items-center gap-1.5 font-black">
+                    <Target className="w-4 h-4 text-primary animate-pulse" /> MULTI-SOURCE SCRAPER COMMAND CENTER
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1">Select your city &amp; industry below → Click any source to scrape, or MEGA LAUNCH all 6 sub-agents in parallel.</p>
+                </div>
+
+                <button
+                  onClick={handleMegaLaunchSwarm}
+                  disabled={megaSwarmActive || !!scanningSource}
+                  className="flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg active:scale-95 disabled:opacity-50 rounded-lg whitespace-nowrap"
+                >
+                  {megaSwarmActive ? "⚡ 6 AGENTS ACTIVE..." : "⚡ MEGA LAUNCH ALL 6 SWARMS"}
+                </button>
               </div>
 
-              <button
-                onClick={handleMegaLaunchSwarm}
-                disabled={megaSwarmActive || !!scanningSource}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg active:scale-95 disabled:opacity-50 rounded-md"
-              >
-                {megaSwarmActive ? "⚡ SWARM ACTIVE..." : "⚡ MEGA LAUNCH ALL 3 SWARMS"}
-              </button>
-            </div>
-
-            {/* LIVE SWARM HUD MONITOR */}
-            {megaSwarmActive && (
-              <div className="bg-background/90 border border-primary/40 p-3 rounded-lg mb-4 text-xs font-mono grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div className="text-amber-400 font-semibold animate-pulse">{swarmLogs.agent1}</div>
-                <div className="text-blue-400 font-semibold animate-pulse">{swarmLogs.agent2}</div>
-                <div className="text-orange-400 font-semibold animate-pulse">{swarmLogs.agent3}</div>
+              {/* SHARED CITY + INDUSTRY INPUTS — used by ALL sources */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 p-4 bg-background/60 border border-border rounded-lg">
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-bold mb-1.5 block">🏙️ Target City / Location</label>
+                  <input
+                    type="text"
+                    placeholder="E.g. Indore, India  ·  Dubai, UAE  ·  New York, US"
+                    value={scanLocation}
+                    onChange={(e) => setScanLocation(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-background border border-border focus:outline-none focus:border-primary transition-colors text-sm font-mono placeholder:text-muted-foreground rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground font-bold mb-1.5 block">🏭 Target Industry / Keyword</label>
+                  <select
+                    value={scanIndustry}
+                    onChange={(e) => setScanIndustry(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-background border border-border focus:outline-none focus:border-primary transition-colors text-sm font-mono text-foreground rounded-md"
+                  >
+                    <option value="Auto">Auto (All Industries)</option>
+                    <optgroup label="── General Industries ──">
+                      <option value="Restaurants & Cafés">Restaurants & Cafés</option>
+                      <option value="Real Estate">Real Estate</option>
+                      <option value="Dental & Medical Clinics">Dental & Medical Clinics</option>
+                      <option value="Fitness & Gyms">Fitness & Gyms</option>
+                      <option value="Beauty & Wellness">Beauty & Wellness</option>
+                      <option value="Hotels & Hospitality">Hotels & Hospitality</option>
+                      <option value="Automotive">Automotive</option>
+                      <option value="Education & Coaching">Education & Coaching</option>
+                      <option value="Home & Interiors">Home & Interiors</option>
+                      <option value="Professional Services">Professional Services</option>
+                      <option value="Retail & Boutiques">Retail & Boutiques</option>
+                    </optgroup>
+                    <optgroup label="── Agency Industries (Akarsa One) ──">
+                      <option value="Digital Marketing Agency">Digital Marketing Agency</option>
+                      <option value="Social Media Agency">Social Media Agency</option>
+                      <option value="Advertising Agency">Advertising Agency</option>
+                      <option value="Branding Studio">Branding Studio</option>
+                      <option value="PR Firm">PR Firm</option>
+                      <option value="Marketing Consultant">Marketing Consultant</option>
+                      <option value="SEO Agency">SEO Agency</option>
+                      <option value="Web Design Agency">Web Design Agency</option>
+                    </optgroup>
+                  </select>
+                </div>
               </div>
-            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button
-                onClick={() => handleLaunchScan('google_maps', 'Indore, India', 'Dental Clinic')}
-                disabled={megaSwarmActive || !!scanningSource}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary/80 hover:bg-secondary border border-border text-foreground font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 rounded-md"
-              >
-                📍 Scan 1: Google Maps Local
-              </button>
+              {/* LIVE SWARM HUD MONITOR */}
+              {megaSwarmActive && (
+                <div className="bg-background/90 border border-primary/40 p-4 rounded-lg mb-5">
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold mb-3">🛰️ LIVE SWARM STATUS MONITOR</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {SCRAPER_SOURCES.map(source => (
+                      <div key={source.id} className="flex items-center gap-2 text-xs font-mono p-2 bg-card/50 rounded border border-border/50">
+                        <span className={`w-2 h-2 rounded-full ${source.dotColor} ${swarmStatuses[source.id]?.includes('Scanning') ? 'animate-pulse' : ''}`} />
+                        <span className="text-muted-foreground truncate">{source.label.split(' ').slice(1).join(' ')}:</span>
+                        <span className="text-foreground font-semibold truncate">{swarmStatuses[source.id] || 'Idle'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-              <button
-                onClick={() => handleLaunchScan('linkedin_b2b', 'Mumbai, India', 'Digital Marketing Agency')}
-                disabled={megaSwarmActive || !!scanningSource}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-950/40 hover:bg-blue-900/50 border border-blue-800/60 text-blue-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 rounded-md"
-              >
-                💼 Scan 2: LinkedIn B2B Agency
-              </button>
-
-              <button
-                onClick={() => handleLaunchScan('reddit_intent', 'Remote', 'need web dev agency marketing')}
-                disabled={megaSwarmActive || !!scanningSource}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-950/40 hover:bg-orange-900/50 border border-orange-800/60 text-orange-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 rounded-md"
-              >
-                🔥 Scan 3: Reddit & RFP Intent
-              </button>
+              {/* 6 DEDICATED SOURCE LAUNCH BUTTONS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {SCRAPER_SOURCES.map(source => (
+                  <button
+                    key={source.id}
+                    onClick={() => handleLaunchScan(source.id)}
+                    disabled={megaSwarmActive || !!scanningSource}
+                    className={`flex flex-col items-start gap-1 px-4 py-3 border ${source.color} font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-[0.97] disabled:opacity-50 rounded-lg text-left relative overflow-hidden`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-sm">{source.label}</span>
+                      {scanningSource === source.id && (
+                        <span className="text-[10px] animate-pulse font-mono">Scanning...</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] opacity-70 font-normal normal-case tracking-normal">{source.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

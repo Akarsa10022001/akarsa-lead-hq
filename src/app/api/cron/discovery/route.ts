@@ -8,6 +8,8 @@ import { WhoisConnector } from '@/lib/connectors/whois';
 import { MetaAdLibraryConnector } from '@/lib/connectors/meta';
 import { DuckDuckGoLinkedInConnector } from '@/lib/connectors/duckduckgo-linkedin';
 import { CommunityIntentConnector } from '@/lib/connectors/reddit-intent';
+import { GDELTConnector } from '@/lib/connectors/gdelt';
+import { OpenCorporatesConnector } from '@/lib/connectors/opencorporates';
 import { scrapeWebsiteEmails, extractDomain } from '@/lib/connectors/email-scraper';
 import { guessEmails, verifyEmail } from '@/lib/connectors/email-guesser';
 import { hunterDomainSearch } from '@/lib/connectors/hunter';
@@ -152,15 +154,109 @@ export async function POST(req: Request) {
       });
     }
 
+    // ── GDELT News Triggers ──
+    if (sourceType === 'gdelt_news') {
+      console.log(`[Discovery] Running GDELT News Trigger scan for keyword: "${category}" in "${config.location}"...`);
+      const gdelt = new GDELTConnector();
+      const searchRes = await gdelt.search({ keyword: `${category} ${config.location}` });
+      const articles = searchRes.results || [];
+
+      let savedCount = 0;
+      for (const article of articles.slice(0, 25)) {
+        const title = article.title || 'Unknown Company';
+        const companyName = title.length > 60 ? `${title.substring(0, 57)}...` : title;
+
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('company_name', companyName)
+          .maybeSingle();
+
+        if (!existing) {
+          const domainMatch = (article.url || '').match(/https?:\/\/(?:www\.)?([^/]+)/);
+          await supabase.from('leads').insert({
+            company_name: companyName,
+            industry: category,
+            location: config.location,
+            source_url: article.url || '',
+            domain: domainMatch ? domainMatch[1] : null,
+            status: 'New',
+            ai_hook_draft: `Recent news coverage: ${title}`,
+            quality_score: 70,
+            agency_fit_score: 75,
+            contactability_score: 40,
+            score_grade: 'B'
+          });
+          savedCount++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `GDELT News scan finished. Found ${articles.length} news articles, saved ${savedCount} leads from news triggers.`,
+        savedCount,
+        stats: { duration_ms: Date.now() - startTime }
+      });
+    }
+
+    // ── OpenCorporates Registry ──
+    if (sourceType === 'opencorporates') {
+      console.log(`[Discovery] Running OpenCorporates Registry scan for "${category}" in "${config.location}"...`);
+      const oc = new OpenCorporatesConnector();
+      const searchRes = await oc.search({ companyName: `${category} ${config.location}` });
+      const companies = (searchRes.results || []).slice(0, 25);
+
+      let savedCount = 0;
+      for (const item of companies) {
+        const company = item?.company || item;
+        const companyName = company?.name || 'Unknown';
+
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('company_name', companyName)
+          .maybeSingle();
+
+        if (!existing) {
+          await supabase.from('leads').insert({
+            company_name: companyName,
+            industry: category,
+            location: company?.registered_address_in_full || config.location,
+            source_url: company?.opencorporates_url || '',
+            status: 'New',
+            ai_hook_draft: `Registered company: ${companyName} (${company?.jurisdiction_code || 'N/A'})`,
+            quality_score: 65,
+            agency_fit_score: 70,
+            contactability_score: 35,
+            score_grade: 'B'
+          });
+          savedCount++;
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `OpenCorporates scan finished. Found ${companies.length} registered companies, saved ${savedCount} leads.`,
+        savedCount,
+        stats: { duration_ms: Date.now() - startTime }
+      });
+    }
+
     let rawLeads: any[] = [];
-    let primarySource = 'google_places';
+    let primarySource = sourceType || 'google_places';
 
     const googleConnector = new GooglePlacesConnector();
     const foursquareConnector = new FoursquareConnector();
     const osmConnector = new OSMOverpassConnector();
 
     let connector: any = googleConnector;
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
+    if (sourceType === 'foursquare') {
+      primarySource = 'foursquare';
+      connector = foursquareConnector;
+    } else if (sourceType === 'osm') {
+      primarySource = 'osm_overpass';
+      connector = osmConnector;
+    } else if (!process.env.GOOGLE_PLACES_API_KEY) {
       if (process.env.FOURSQUARE_API_KEY) {
         primarySource = 'foursquare';
         connector = foursquareConnector;

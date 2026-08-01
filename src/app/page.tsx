@@ -341,30 +341,52 @@ export default function Home() {
                 </div>
               </div>
               <div>
+                {/* SHARED CITY + INDUSTRY INPUTS */}
+                <div className="mb-3">
+                  <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground font-bold mb-1 block">🏙️ City / Location</label>
+                  <input
+                    type="text"
+                    placeholder="E.g. Indore, India · Dubai, UAE"
+                    value={scanLocation}
+                    onChange={(e) => setScanLocation(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border mb-2 focus:outline-none focus:border-primary transition-colors text-xs font-mono placeholder:text-muted-foreground rounded-md"
+                  />
+                  <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground font-bold mb-1 block">🏭 Industry / Keyword</label>
+                  <select
+                    value={scanIndustry}
+                    onChange={(e) => setScanIndustry(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border mb-3 focus:outline-none focus:border-primary transition-colors text-xs font-mono text-foreground rounded-md"
+                  >
+                    <option value="Auto">Auto (All Industries)</option>
+                    {INDUSTRY_MAP.map(ind => (
+                      <option key={ind.label} value={ind.label}>{ind.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* MEGA LAUNCH BUTTON */}
                 <button 
                   onClick={async () => {
-                    if (!confirm("⚡ Launch Parallel Multi-Agent Swarm?\n\nThis will spawn 3 sub-agents concurrently across Google Maps, LinkedIn B2B, and Reddit Intent to scrape high-quality leads in parallel.")) return;
+                    const loc = scanLocation.trim() || 'Indore, India';
+                    const cat = scanIndustry === 'Auto' ? 'Dental & Medical Clinics' : scanIndustry;
+                    if (!confirm(`⚡ MEGA LAUNCH 6 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 6 scrapers will run in parallel.`)) return;
                     setIsScanning(true);
-                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 3 sub-agents across Google Maps, LinkedIn B2B & Reddit Intent...", type: "success" });
+                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 6 sub-agents across all sources...", type: "success" });
                     try {
-                      const [res1, res2, res3] = await Promise.allSettled([
+                      const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates'];
+                      await Promise.allSettled(sources.map(src =>
                         fetch("/api/cron/discovery", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ location: scanLocation || 'Indore, India', businessType: scanIndustry === 'Auto' ? 'Dental Clinic' : scanIndustry, sourceType: 'google_maps', maxLeads: 20 })
-                        }).then(r => r.json()),
-                        fetch("/api/cron/discovery", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ location: scanLocation || 'Mumbai, India', businessType: scanIndustry === 'Auto' ? 'Digital Marketing Agency' : scanIndustry, sourceType: 'google_maps', maxLeads: 20 })
-                        }).then(r => r.json()),
-                        fetch("/api/cron/discovery", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ businessType: 'need web dev agency marketing', sourceType: 'reddit_intent' })
+                          body: JSON.stringify({
+                            location: loc,
+                            businessType: src === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
+                            sourceType: src,
+                            maxLeads: 20
+                          })
                         }).then(r => r.json())
-                      ]);
-                      setToast({ show: true, title: "🎉 Mega Swarm Complete", desc: "All 3 sub-agents finished scraping leads successfully!", type: "success" });
+                      ));
+                      setToast({ show: true, title: "🎉 Mega Swarm Complete", desc: "All 6 sub-agents finished!", type: "success" });
                       fetchDashboardData();
                     } catch (e: any) {
                       setToast({ show: true, title: "Swarm Error", desc: e.message, type: "error" });
@@ -373,80 +395,63 @@ export default function Home() {
                     }
                   }}
                   disabled={isScanning}
-                  className="w-full py-3.5 mb-3 flex justify-center items-center gap-2 bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black font-heading tracking-wider uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 rounded-md cursor-pointer text-xs"
+                  className="w-full py-3 mb-3 flex justify-center items-center gap-2 bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black font-heading tracking-wider uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 rounded-md cursor-pointer text-[11px]"
                 >
-                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Swarm Scraping...</> : "⚡ MEGA LAUNCH ALL 3 SWARMS"}
+                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> 6 AGENTS ACTIVE...</> : "⚡ MEGA LAUNCH ALL 6 SWARMS"}
                 </button>
 
-                <div className="grid grid-cols-1 gap-2 mb-3">
-                  <button
-                    onClick={() => { setScanIndustry("Dental Clinic"); handleManualScan(); }}
-                    disabled={isScanning}
-                    className="w-full py-2 bg-secondary/80 hover:bg-secondary border border-border text-foreground font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 text-left px-3 rounded-md flex items-center justify-between"
-                  >
-                    <span>📍 1. Google Maps Local</span>
-                    <span className="text-[10px] text-muted-foreground">Indore / Clinic</span>
-                  </button>
-
-                  <button
-                    onClick={() => { setScanIndustry("Digital Marketing Agency"); handleManualScan(); }}
-                    disabled={isScanning}
-                    className="w-full py-2 bg-blue-950/40 hover:bg-blue-900/50 border border-blue-800/60 text-blue-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 text-left px-3 rounded-md flex items-center justify-between"
-                  >
-                    <span>💼 2. LinkedIn B2B Agency</span>
-                    <span className="text-[10px] text-blue-300">Mumbai / Agency</span>
-                  </button>
-
-                  <button
-                    onClick={async () => {
-                      setIsScanning(true);
-                      setToast({ show: true, title: "Scanning Reddit", desc: "Scraping live hiring posts and RFP intent...", type: "success" });
-                      try {
-                        const res = await fetch("/api/cron/discovery", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ businessType: 'need web dev agency marketing', sourceType: 'reddit_intent' })
-                        });
-                        const data = await res.json();
-                        setToast({ show: true, title: "Reddit Scan Complete", desc: `Found & saved ${data.savedCount || 0} high-intent RFPs.`, type: "success" });
-                        fetchDashboardData();
-                      } catch (e: any) {
-                        setToast({ show: true, title: "Reddit Error", desc: e.message, type: "error" });
-                      } finally {
-                        setIsScanning(false);
-                      }
-                    }}
-                    disabled={isScanning}
-                    className="w-full py-2 bg-orange-950/40 hover:bg-orange-900/50 border border-orange-800/60 text-orange-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 text-left px-3 rounded-md flex items-center justify-between"
-                  >
-                    <span>🔥 3. Reddit & RFP Intent</span>
-                    <span className="text-[10px] text-orange-300">r/hiring / RFPs</span>
-                  </button>
+                {/* 6 INDIVIDUAL SOURCE BUTTONS */}
+                <div className="grid grid-cols-1 gap-1.5 mb-3">
+                  {[
+                    { id: 'google_maps', label: '📍 Google Maps API', color: 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-800/60 text-emerald-200' },
+                    { id: 'foursquare', label: '🟣 Foursquare Places', color: 'bg-purple-950/40 hover:bg-purple-900/50 border-purple-800/60 text-purple-200' },
+                    { id: 'osm', label: '🗺️ OSM / Nominatim', color: 'bg-sky-950/40 hover:bg-sky-900/50 border-sky-800/60 text-sky-200' },
+                    { id: 'reddit_intent', label: '🔥 Reddit & RFP Intent', color: 'bg-orange-950/40 hover:bg-orange-900/50 border-orange-800/60 text-orange-200' },
+                    { id: 'gdelt_news', label: '📰 GDELT News Triggers', color: 'bg-rose-950/40 hover:bg-rose-900/50 border-rose-800/60 text-rose-200' },
+                    { id: 'opencorporates', label: '🏢 OpenCorporates', color: 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-800/60 text-cyan-200' },
+                  ].map(src => (
+                    <button
+                      key={src.id}
+                      onClick={async () => {
+                        const loc = scanLocation.trim() || 'Indore, India';
+                        const cat = scanIndustry === 'Auto' ? 'Dental & Medical Clinics' : scanIndustry;
+                        setIsScanning(true);
+                        setToast({ show: true, title: `Scanning ${src.label}`, desc: `${loc} · ${cat}`, type: "success" });
+                        try {
+                          const res = await fetch("/api/cron/discovery", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              location: loc,
+                              businessType: src.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
+                              sourceType: src.id,
+                              maxLeads: 25
+                            })
+                          });
+                          const data = await res.json();
+                          setToast({ show: true, title: `${src.label} Done`, desc: data.message || `Saved ${data.savedCount || 0} leads`, type: data.success ? "success" : "error" });
+                          fetchDashboardData();
+                        } catch (e: any) {
+                          setToast({ show: true, title: "Error", desc: e.message, type: "error" });
+                        } finally {
+                          setIsScanning(false);
+                        }
+                      }}
+                      disabled={isScanning}
+                      className={`w-full py-1.5 border ${src.color} font-bold text-[10px] uppercase tracking-wider transition-all cursor-pointer active:scale-95 disabled:opacity-50 px-3 rounded-md flex items-center justify-between`}
+                    >
+                      <span>{src.label}</span>
+                    </button>
+                  ))}
                 </div>
 
-                <input
-                  type="text"
-                  placeholder="E.g. Dubai, UAE (Leave blank for auto)"
-                  value={scanLocation}
-                  onChange={(e) => setScanLocation(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border mb-2 focus:outline-none focus:border-primary transition-colors text-xs font-mono placeholder:text-muted-foreground rounded-md"
-                />
-                <select
-                  value={scanIndustry}
-                  onChange={(e) => setScanIndustry(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border mb-2 focus:outline-none focus:border-primary transition-colors text-xs font-mono text-foreground rounded-md"
-                >
-                  <option value="Auto">Auto (All Industries)</option>
-                  {INDUSTRY_MAP.map(ind => (
-                    <option key={ind.label} value={ind.label}>{ind.label}</option>
-                  ))}
-                </select>
+                {/* CUSTOM MANUAL SCAN (same as before) */}
                 <button 
                   onClick={handleManualScan}
                   disabled={isScanning}
-                  className="w-full py-2.5 flex justify-center items-center gap-2 bg-secondary text-secondary-foreground font-bold font-heading tracking-wide uppercase hover:bg-secondary/90 transition-colors disabled:opacity-50 border border-border text-xs rounded-md cursor-pointer"
+                  className="w-full py-2 flex justify-center items-center gap-2 bg-secondary text-secondary-foreground font-bold font-heading tracking-wide uppercase hover:bg-secondary/90 transition-colors disabled:opacity-50 border border-border text-[10px] rounded-md cursor-pointer"
                 >
-                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</> : "Custom Manual Scan"}
+                  {isScanning ? <><Loader2 className="w-3 h-3 animate-spin" /> Scanning...</> : "Custom Manual Scan"}
                 </button>
               </div>
             </div>
