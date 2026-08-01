@@ -368,7 +368,7 @@ export default function Home() {
                 <button 
                   onClick={async () => {
                     const loc = scanLocation.trim() || 'Indore, India';
-                    const cat = scanIndustry === 'Auto' ? 'Dental & Medical Clinics' : scanIndustry;
+                    const cat = scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
                     if (!confirm(`⚡ MEGA LAUNCH 6 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 6 scrapers will run in parallel.`)) return;
                     setIsScanning(true);
                     setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 6 sub-agents across all sources...", type: "success" });
@@ -380,7 +380,7 @@ export default function Home() {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             location: loc,
-                            businessType: src === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
+                            businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
                             sourceType: src,
                             maxLeads: 50
                           })
@@ -414,7 +414,7 @@ export default function Home() {
                       key={src.id}
                       onClick={async () => {
                         const loc = scanLocation.trim() || 'Indore, India';
-                        const cat = scanIndustry === 'Auto' ? 'Dental & Medical Clinics' : scanIndustry;
+                        const cat = scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
                         setIsScanning(true);
                         setToast({ show: true, title: `Scanning ${src.label}`, desc: `${loc} · ${cat}`, type: "success" });
                         try {
@@ -423,7 +423,7 @@ export default function Home() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
                               location: loc,
-                              businessType: src.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
+                              businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
                               sourceType: src.id,
                               maxLeads: 50
                             })

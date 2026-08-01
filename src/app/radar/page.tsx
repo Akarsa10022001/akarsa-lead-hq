@@ -275,7 +275,7 @@ export default function Radar() {
   ];
 
   const getResolvedLocation = () => scanLocation.trim() || 'Indore, India';
-  const getResolvedIndustry = () => scanIndustry === 'Auto' ? 'Dental & Medical Clinics' : scanIndustry;
+  const getResolvedIndustry = () => scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
 
   const handleLaunchScan = async (sourceId: string) => {
     const loc = getResolvedLocation();
@@ -288,7 +288,7 @@ export default function Radar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           location: loc,
-          businessType: cat,
+          businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
           sourceType: sourceId,
           maxLeads: 50
         })
@@ -329,7 +329,7 @@ export default function Radar() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             location: loc,
-            businessType: source.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat,
+            businessType: scanIndustry === 'Auto' ? 'Auto' : (source.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat),
             sourceType: source.id,
             maxLeads: 50
           })

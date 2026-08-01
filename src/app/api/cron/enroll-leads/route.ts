@@ -47,6 +47,8 @@ export async function POST(req: Request) {
     const leadsToStage = readyLeads.filter(l => 
       !existingSeqIds.has(l.id) && 
       l.status !== 'Lost' && 
+      l.email_quality !== 'invalid_scraped' &&
+      l.email_quality !== 'bounced' &&
       (l.score_total || l.quality_score || 0) >= 40 && 
       (l.email_verified || l.email || l.phone_e164 || l.phone)
     );
