@@ -145,12 +145,13 @@ export default function ApprovalsQueue() {
               </p>
             </div>
             {queue.length > 0 && (
-              <div className="flex gap-3">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={handleBulkApprove}
-                  className="px-4 py-2 border border-border bg-background hover:bg-secondary transition-all font-bold text-xs uppercase tracking-widest cursor-pointer"
+                  disabled={loading}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md rounded-md active:scale-95 disabled:opacity-50"
                 >
-                  Bulk Approve ({queue.length})
+                  <Send className="w-4 h-4" /> ⚡ 1-Click Approve & Dispatch All ({queue.length})
                 </button>
               </div>
             )}
