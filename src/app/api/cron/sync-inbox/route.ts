@@ -3,13 +3,14 @@ import { supabase } from '@/lib/supabase/client';
 import Imap from 'imap-simple';
 import { simpleParser } from 'mailparser';
 
-// This cron job connects to the Gmail inbox, checks for UNSEEN replies,
-// and syncs them into the database so they appear in the Radar/Inbox.
+export const maxDuration = 300;
+export const dynamic = 'force-dynamic';
+
 export async function POST() {
-  const user = process.env.GMAIL_USER;
+  const user = process.env.GMAIL_USER || 'beakarsa@gmail.com';
   const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!user || !pass) {
+  if (!pass) {
     return NextResponse.json({ success: false, error: 'IMAP credentials not configured' }, { status: 400 });
   }
 
@@ -20,7 +21,8 @@ export async function POST() {
       host: 'imap.gmail.com',
       port: 993,
       tls: true,
-      authTimeout: 10000
+      tlsOptions: { rejectUnauthorized: false },
+      authTimeout: 15000
     }
   };
 
@@ -28,11 +30,15 @@ export async function POST() {
     const connection = await Imap.connect(config);
     await connection.openBox('INBOX');
 
-    // Fetch unseen messages
-    const searchCriteria = ['UNSEEN'];
+    // Fetch messages from the last 60 days to ensure no read/opened replies are missed
+    const searchDate = new Date();
+    searchDate.setDate(searchDate.getDate() - 60);
+    const dateStr = searchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const searchCriteria = [['SINCE', dateStr]];
     const fetchOptions = {
       bodies: ['HEADER', 'TEXT', ''],
-      markSeen: true
+      markSeen: false
     };
 
     const messages = await connection.search(searchCriteria, fetchOptions);
@@ -47,54 +53,61 @@ export async function POST() {
         if (!all?.body) continue;
         
         const mail = await simpleParser(idHeader + all.body);
-        
-        // Extract sender email
-        const sender = mail.from?.value[0]?.address;
-        if (!sender) continue;
+        const sender = mail.from?.value[0]?.address?.toLowerCase();
+        if (!sender || sender === user.toLowerCase()) continue;
 
-        // Skip our own emails
-        if (sender.toLowerCase() === user.toLowerCase()) continue;
-
-        // Find the lead associated with this sender email
+        // Find associated lead by email
         const { data: lead } = await supabase
           .from('leads')
           .select('id, email, status')
           .ilike('email', sender)
-          .order('created_at', { ascending: false })
-          .limit(1)
           .maybeSingle();
 
         if (lead) {
-          // Find the most recent active sequence for this lead
-          const { data: sequence } = await supabase
+          // Find or create sequence
+          let { data: sequence } = await supabase
             .from('outreach_sequences')
             .select('id')
             .eq('lead_id', lead.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
             .maybeSingle();
 
+          if (!sequence) {
+            const { data: newSeq } = await supabase
+              .from('outreach_sequences')
+              .insert({ lead_id: lead.id, status: 'active' })
+              .select()
+              .single();
+            sequence = newSeq;
+          }
+
           if (sequence) {
-            // Log the reply
-            await supabase
+            // Check if already logged
+            const { data: existing } = await supabase
               .from('outreach_messages')
-              .insert({
-                sequence_id: sequence.id,
-                step_number: 1, // Treat as reply to step 1
-                channel: 'email',
-                draft_content: mail.text || mail.html || '(Empty Body)',
-                sent_at: new Date(mail.date || Date.now()).toISOString(),
-                status: 'received'
-              });
+              .select('id')
+              .eq('sequence_id', sequence.id)
+              .eq('status', 'received')
+              .maybeSingle();
 
-            // Update lead status to Replied
-            await supabase
-              .from('leads')
-              .update({ status: 'Replied' })
-              .eq('id', lead.id);
+            if (!existing) {
+              await supabase
+                .from('outreach_messages')
+                .insert({
+                  sequence_id: sequence.id,
+                  step_number: 1,
+                  channel: 'email',
+                  draft_content: mail.text || mail.html || mail.subject || '(Empty Body)',
+                  sent_at: new Date(mail.date || Date.now()).toISOString(),
+                  status: 'received'
+                });
 
-            syncedCount++;
-            console.log(`[Inbox Sync] Synced reply from ${sender}`);
+              await supabase
+                .from('leads')
+                .update({ status: 'Replied' })
+                .eq('id', lead.id);
+
+              syncedCount++;
+            }
           }
         }
       } catch (err) {
@@ -106,7 +119,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: `Inbox synced successfully. Found ${syncedCount} new lead replies.`,
+      message: `Inbox synced successfully. Logged ${syncedCount} new lead replies.`,
       synced: syncedCount
     });
 

@@ -90,13 +90,30 @@ export function calculateMLScore(lead: any, baseScore: number = 0, signals: any[
 }
 
 /**
- * Runs full database reconciliation & ML training loop across all 1,000 leads
+ * Runs full database reconciliation & ML training loop across all leads
  */
 export async function runMLReconcileAndTrain() {
   console.log('[ML Engine] Starting full database reconciliation and re-scoring loop...');
 
-  const { data: leads, error: leadErr } = await supabase.from('leads').select('*');
-  if (leadErr || !leads) throw new Error(`Failed to fetch leads: ${leadErr?.message}`);
+  let leads: any[] = [];
+  let pageIndex = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('*')
+      .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
+    if (error) throw new Error(`Failed to fetch leads: ${error.message}`);
+    if (data && data.length > 0) {
+      leads = leads.concat(data);
+      if (data.length < pageSize) hasMore = false;
+      else pageIndex++;
+    } else {
+      hasMore = false;
+    }
+  }
 
   const { data: msgs } = await supabase.from('outreach_messages').select('*');
   const { data: touches } = await supabase.from('touches').select('*');
