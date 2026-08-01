@@ -17,11 +17,11 @@ export default function Radar() {
 
   useEffect(() => {
     async function fetchLeads() {
-      // First try to fetch from Supabase
+      // Fetch from Supabase filtering production leads
       const { data, error } = await supabase
         .from('leads')
         .select('*')
-        .neq('status', 'Rejected')
+        .eq('is_test', false)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -29,7 +29,6 @@ export default function Radar() {
       } else if (data && data.length > 0) {
         setLeads(data);
       } else {
-        // Fallback to empty state if no leads
         setLeads([]);
       }
       setLoading(false);
@@ -37,7 +36,7 @@ export default function Radar() {
     fetchLeads();
   }, []);
 
-  const excludedStatuses = ['emailed', 'hot', 'won', 'dead', 'replied', 'contacted', 'rejected', 'Rejected'];
+  const excludedStatuses = ['won', 'lost', 'dead', 'rejected'];
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           lead.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
