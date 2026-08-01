@@ -50,7 +50,7 @@ export default function Radar() {
     fetchLeads();
   }, []);
 
-  const excludedStatuses = ['won', 'lost', 'dead', 'rejected'];
+  const excludedStatuses = ['won', 'lost', 'dead', 'rejected', 'contacted'];
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           lead.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -253,28 +253,29 @@ export default function Radar() {
 
               <button
                 onClick={async () => {
-                  if (confirm(`Trigger 1-Click WhatsApp Auto-Outreach across pending phone leads? This will generate evidence-based messages and dispatch them via your verified Meta WhatsApp API.`)) {
-                    setLoading(true);
-                    try {
-                      const res = await fetch("/api/cron/enroll-and-send-whatsapp-bulk", { method: "POST" });
-                      const data = await res.json();
-                      if (data.success) {
-                        alert(`🎉 WhatsApp Bulk Send Success! Dispatched ${data.sentCount} WhatsApp messages via Meta API. ${data.totalRemainingNew} remaining.`);
-                        window.location.reload();
-                      } else {
-                        alert(`WhatsApp send error: ${data.error}`);
-                      }
-                    } catch (e: any) {
-                      alert(`WhatsApp send error: ${e.message}`);
-                    } finally {
-                      setLoading(false);
+                  const phoneLeads = filteredLeads.filter(l => l.status === 'New' && l.phone).slice(0, 10);
+                  if (phoneLeads.length === 0) {
+                    alert("No new phone leads available.");
+                    return;
+                  }
+
+                  if (confirm(`Open 1-Click WhatsApp Web batch for top ${phoneLeads.length} leads directly in web.whatsapp.com? This will pre-fill personalized evidence copy and mark them as Contacted so they move off Lead Radar.`)) {
+                    for (const lead of phoneLeads) {
+                      const cleanPhone = lead.phone.replace(/\D/g, '');
+                      const text = encodeURIComponent(`Hi ${lead.company_name} Team! Saw your profile in ${lead.geo || lead.location || 'your area'}. We help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat?`);
+                      window.open(`https://web.whatsapp.com/send?phone=${cleanPhone}&text=${text}`, '_blank');
+                      
+                      // Update lead status to Contacted
+                      await supabase.from('leads').update({ status: 'Contacted' }).eq('id', lead.id);
                     }
+                    alert(`Opened ${phoneLeads.length} WhatsApp Web tabs and moved leads to Contacted status!`);
+                    window.location.reload();
                   }
                 }}
                 disabled={loading}
-                className="flex items-center gap-2 px-5 py-2 bg-accent text-accent-foreground hover:bg-accent/90 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white hover:bg-emerald-700 transition-all font-bold text-xs uppercase tracking-widest cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
               >
-                <MessageSquare className="w-4 h-4" /> 💬 1-Click WhatsApp Auto-Send ({filteredLeads.filter(l => l.status === 'New' && l.phone).length})
+                <MessageSquare className="w-4 h-4" /> 📲 1-Click Open WhatsApp Web Batch ({filteredLeads.filter(l => l.status === 'New' && l.phone).length})
               </button>
               <div className="relative w-full sm:w-auto">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
