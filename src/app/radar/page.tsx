@@ -323,10 +323,13 @@ export default function Radar() {
     setSwarmStatuses(initialStatuses);
 
     try {
-      const promises = SCRAPER_SOURCES.map(source =>
-        fetch("/api/cron/discovery", {
+      const promises = SCRAPER_SOURCES.map(source => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        return fetch("/api/cron/discovery", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             location: loc,
             businessType: scanIndustry === 'Auto' ? 'Auto' : (source.id === 'reddit_intent' ? `${cat} agency web dev marketing` : cat),
@@ -334,16 +337,20 @@ export default function Radar() {
             maxLeads: 50
           })
         })
-        .then(r => r.json())
-        .then(data => {
+        .then(async r => {
+          clearTimeout(timeoutId);
+          if (!r.ok) return { sourceId: source.id, success: false, error: `HTTP ${r.status}` };
+          const data = await r.json();
           setSwarmStatuses(prev => ({ ...prev, [source.id]: data.success ? `✅ ${data.savedCount || data.leads?.length || data.pipeline_log?.inserted_to_db || 0} leads found` : `❌ ${data.error || 'Failed'}` }));
           return { sourceId: source.id, ...data };
         })
         .catch(err => {
-          setSwarmStatuses(prev => ({ ...prev, [source.id]: `❌ Error: ${err.message}` }));
-          return { sourceId: source.id, success: false };
-        })
-      );
+          clearTimeout(timeoutId);
+          const errMsg = err.name === 'AbortError' ? 'Timeout (15s)' : err.message;
+          setSwarmStatuses(prev => ({ ...prev, [source.id]: `❌ Error: ${errMsg}` }));
+          return { sourceId: source.id, success: false, error: errMsg };
+        });
+      });
 
       const results = await Promise.allSettled(promises);
 

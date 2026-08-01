@@ -374,19 +374,39 @@ export default function Home() {
                     setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 6 sub-agents across all sources...", type: "success" });
                     try {
                       const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates'];
-                      await Promise.allSettled(sources.map(src =>
-                        fetch("/api/cron/discovery", {
+                      const results = await Promise.allSettled(sources.map(src => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 15000);
+                        return fetch("/api/cron/discovery", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
+                          signal: controller.signal,
                           body: JSON.stringify({
                             location: loc,
                             businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
                             sourceType: src,
                             maxLeads: 50
                           })
-                        }).then(r => r.json())
-                      ));
-                      setToast({ show: true, title: "🎉 Mega Swarm Complete", desc: "All 6 sub-agents finished!", type: "success" });
+                        })
+                        .then(async r => {
+                          clearTimeout(timeoutId);
+                          if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+                          return r.json();
+                        })
+                        .catch(err => {
+                          clearTimeout(timeoutId);
+                          return { success: false, error: err.name === 'AbortError' ? 'Timeout (15s)' : err.message };
+                        });
+                      }));
+
+                      const totalSaved = results.reduce((acc, res) => {
+                        if (res.status === 'fulfilled' && res.value?.success) {
+                          return acc + (res.value.savedCount || res.value.leads?.length || 0);
+                        }
+                        return acc;
+                      }, 0);
+
+                      setToast({ show: true, title: "🎉 Mega Swarm Complete", desc: `Finished! Saved ${totalSaved} new leads.`, type: "success" });
                       fetchDashboardData();
                     } catch (e: any) {
                       setToast({ show: true, title: "Swarm Error", desc: e.message, type: "error" });

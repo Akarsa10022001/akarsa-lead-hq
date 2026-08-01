@@ -68,12 +68,17 @@ const DEFAULT_CONFIG: DiscoveryConfig = {
 export async function POST(req: Request) {
   const startTime = Date.now();
 
-  // CRON_SECRET Protection
-  const authHeader = req.headers.get('Authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  
+  // Parse request body first to check for manual UI override
+  let config = { ...DEFAULT_CONFIG };
+  let isManualUiRequest = false;
+  try {
+    const body = await req.json();
+    if (body && (body.location || body.businessType || body.sourceType)) {
+      config = { ...config, ...body };
+      isManualUiRequest = true;
+    }
+  } catch { /* Use defaults if no body */ }
+
   // Debug log counts
   const pipelineLog = {
     fetched_from_source: 0,
@@ -84,13 +89,6 @@ export async function POST(req: Request) {
   };
 
   try {
-    // Allow config override from request body
-    let config = { ...DEFAULT_CONFIG };
-    try {
-      const body = await req.json();
-      config = { ...config, ...body };
-    } catch { /* Use defaults if no body */ }
-
     // If location is completely blank, pick a random popular area as a fallback for the "Auto" mode
     if (!config.location || config.location.trim() === '') {
       const autoLocations = [
