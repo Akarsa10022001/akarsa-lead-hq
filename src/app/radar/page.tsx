@@ -258,6 +258,45 @@ export default function Radar() {
     }
   };
 
+  const [scanningSource, setScanningSource] = useState<string | null>(null);
+
+  const handleLaunchScan = async (sourceType: 'google_maps' | 'linkedin_b2b' | 'reddit_intent', defaultLocation: string, defaultType: string) => {
+    const loc = prompt(`Enter City / Location for ${sourceType.toUpperCase()} Scan:`, defaultLocation);
+    if (loc === null) return;
+    const cat = prompt(`Enter Industry / Search Keyword:`, defaultType);
+    if (cat === null) return;
+
+    setScanningSource(sourceType);
+    try {
+      const res = await fetch("/api/cron/discovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: loc,
+          businessType: cat,
+          sourceType: sourceType,
+          maxLeads: 20
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`🎉 ${sourceType.toUpperCase()} Scan Success! ${data.message}`);
+        // Add new leads to state
+        if (data.leads && data.leads.length > 0) {
+          setLeads(prev => [...data.leads, ...prev]);
+        } else {
+          window.location.reload();
+        }
+      } else {
+        alert(`Scan error: ${data.error}`);
+      }
+    } catch (err: any) {
+      alert(`Scan error: ${err.message}`);
+    } finally {
+      setScanningSource(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -269,7 +308,7 @@ export default function Radar() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl font-bold">Lead Radar</h1>
               <p className="text-muted-foreground mt-1">AI-scouted targets waiting for your engagement.</p>
@@ -312,41 +351,85 @@ export default function Radar() {
               >
                 <MessageSquare className="w-4 h-4" /> 📲 WhatsApp Web Queue Runner ({leads.filter(l => (l.status || '').toLowerCase() === 'new' && l.phone && l.phone.length > 5).length})
               </button>
-              <div className="relative w-full sm:w-auto">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search targets..." 
-                  className="pl-9 pr-4 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full sm:w-64 transition-all font-mono"
-                />
-              </div>
-              <div className="relative">
-                <button 
-                  onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-                  className="flex items-center gap-2 px-4 py-2 bg-background border border-border text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest"
-                >
-                  <Filter className="w-4 h-4" /> 
-                  {statusFilter || "All Statuses"} 
-                  <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
-                </button>
-                <AnimatePresence>
-                  {filterMenuOpen && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="absolute right-0 mt-2 w-48 bg-card border border-border shadow-xl z-50 overflow-hidden"
-                    >
-                      <button onClick={() => { setStatusFilter(null); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest">All Statuses</button>
-                      <button onClick={() => { setStatusFilter('New'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-primary font-medium font-mono uppercase tracking-widest">New</button>
-                      <button onClick={() => { setStatusFilter('Contacted'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-blue-500 font-medium font-mono uppercase tracking-widest">Contacted</button>
-                      <button onClick={() => { setStatusFilter('Won'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-accent font-medium font-mono uppercase tracking-widest">Won</button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+            </div>
+          </div>
+
+          {/* MULTI-SOURCE LAUNCHPAD SCRAPER BAR */}
+          <div className="bg-card border border-border/60 p-4 mb-8 rounded-lg shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 font-semibold">
+                <Target className="w-3.5 h-3.5 text-primary" /> 🚀 Multi-Source Scrape Launchpad (Scrape High-Quality Leads Manually)
+              </span>
+              {scanningSource && (
+                <span className="text-xs font-mono text-primary animate-pulse font-semibold">
+                  Scanning {scanningSource.toUpperCase()}... Please wait
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button
+                onClick={() => handleLaunchScan('google_maps', 'Indore, India', 'Dental Clinic')}
+                disabled={!!scanningSource}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary/80 hover:bg-secondary border border-border text-foreground font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                📍 Scan 1: Google Maps Local
+              </button>
+
+              <button
+                onClick={() => handleLaunchScan('linkedin_b2b', 'Mumbai, India', 'Digital Marketing Agency')}
+                disabled={!!scanningSource}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-950/40 hover:bg-blue-900/50 border border-blue-800/60 text-blue-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                💼 Scan 2: LinkedIn B2B Agency
+              </button>
+
+              <button
+                onClick={() => handleLaunchScan('reddit_intent', 'Remote', 'need web dev agency marketing')}
+                disabled={!!scanningSource}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-950/40 hover:bg-orange-900/50 border border-orange-800/60 text-orange-200 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                🔥 Scan 3: Reddit & RFP Intent
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search targets..." 
+                className="pl-9 pr-4 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full transition-all font-mono"
+              />
+            </div>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setFilterMenuOpen(!filterMenuOpen)}
+                className="flex items-center gap-2 px-4 py-2 bg-background border border-border text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest"
+              >
+                <Filter className="w-4 h-4" /> 
+                {statusFilter || "All Statuses"} 
+                <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
+              </button>
+              <AnimatePresence>
+                {filterMenuOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 mt-2 w-48 bg-card border border-border shadow-xl z-50 overflow-hidden"
+                  >
+                    <button onClick={() => { setStatusFilter(null); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors font-mono uppercase tracking-widest">All Statuses</button>
+                    <button onClick={() => { setStatusFilter('New'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-primary font-medium font-mono uppercase tracking-widest">New</button>
+                    <button onClick={() => { setStatusFilter('Contacted'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-blue-500 font-medium font-mono uppercase tracking-widest">Contacted</button>
+                    <button onClick={() => { setStatusFilter('Won'); setFilterMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm hover:bg-secondary transition-colors text-accent font-medium font-mono uppercase tracking-widest">Won</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
