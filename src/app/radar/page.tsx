@@ -17,20 +17,34 @@ export default function Radar() {
 
   useEffect(() => {
     async function fetchLeads() {
-      // Fetch from Supabase filtering production leads
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('is_test', false)
-        .order('created_at', { ascending: false });
+      let allLeads: any[] = [];
+      let pageIndex = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error("Error fetching leads:", error);
-      } else if (data && data.length > 0) {
-        setLeads(data);
-      } else {
-        setLeads([]);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('is_test', false)
+          .order('created_at', { ascending: false })
+          .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
+
+        if (error) {
+          console.error("Error fetching leads:", error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allLeads = allLeads.concat(data);
+          if (data.length < pageSize) hasMore = false;
+          else pageIndex++;
+        } else {
+          hasMore = false;
+        }
       }
+
+      setLeads(allLeads);
       setLoading(false);
     }
     fetchLeads();

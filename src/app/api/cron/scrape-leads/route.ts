@@ -12,8 +12,12 @@ function cleanCompanyName(rawName: string): string {
 
 // Stage 1: INGESTION ENDPOINT (Apify Webhook)
 export async function POST(request: Request) {
-  try {
-    const payload = await request.json();
+  // EMERGENCY KILL-SWITCH ACTIVE: Ingestion is paused while scoring & filters are rewritten
+  return NextResponse.json({
+    error: 'INGESTION DISABLED',
+    message: 'Lead ingestion is urgently disabled while quality gates and scoring logic are under remediation.'
+  }, { status: 503 });
+}
     
     // Apify usually sends an array of items, or a single object if configured differently.
     const records = Array.isArray(payload) ? payload : (payload.items || [payload]);
@@ -45,17 +49,17 @@ export async function POST(request: Request) {
 
       // 1. Negative Filter: Social / No-reply email
       if (email && /facebook\.com|instagram\.com|linkedin\.com|noreply|no-reply/i.test(email)) {
-        status = 'Rejected';
+        status = 'Lost';
         rejection_reason = 'social_or_noreply_email';
       } 
       // 2. Negative Filter: No contact info
       else if (!email && !phone) {
-        status = 'Rejected';
+        status = 'Lost';
         rejection_reason = 'no_contact_info';
       }
 
       // 3. Negative Filter: Duplicate check on company_name_clean + geo
-      if (status !== 'Rejected') {
+      if (status !== 'Lost') {
         const { data: existing } = await supabase
           .from('leads')
           .select('id')
@@ -64,7 +68,7 @@ export async function POST(request: Request) {
           .limit(1);
 
         if (existing && existing.length > 0) {
-          status = 'Rejected';
+          status = 'Lost';
           rejection_reason = 'duplicate_lead';
         }
       }
@@ -86,6 +90,7 @@ export async function POST(request: Request) {
         social_links,
         segment,
         status,
+        rejected_reason: rejection_reason,
         score_factors,
         has_website: !!domain
       });
