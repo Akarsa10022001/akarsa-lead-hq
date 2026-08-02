@@ -6,7 +6,12 @@ import * as cheerio from 'cheerio';
  * and extracts email addresses from the HTML.
  */
 
-const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+// IMPORTANT: Do NOT add the /g flag here — using /g with .test() advances the cursor
+// and causes false negatives on subsequent calls (JS regex state bug).
+// Use EMAIL_REGEX_MATCH (with /g) only for .match() calls.
+const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+const EMAIL_REGEX_MATCH = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+
 
 // Common contact/about pages to check
 const CONTACT_PATHS = [
@@ -88,13 +93,13 @@ function extractEmailsFromHTML(html: string): string[] {
 
   // 2. Extract from page text
   const bodyText = $('body').text();
-  const textMatches = bodyText.match(EMAIL_REGEX);
+  const textMatches = bodyText.match(EMAIL_REGEX_MATCH);
   if (textMatches) {
     textMatches.forEach(email => emails.add(email.toLowerCase()));
   }
 
   // 3. Extract from HTML source (catches obfuscated/hidden emails)
-  const htmlMatches = html.match(EMAIL_REGEX);
+  const htmlMatches = html.match(EMAIL_REGEX_MATCH);
   if (htmlMatches) {
     htmlMatches.forEach(email => emails.add(email.toLowerCase()));
   }

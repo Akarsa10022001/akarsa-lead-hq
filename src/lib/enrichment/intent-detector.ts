@@ -64,11 +64,19 @@ async function searchSerpAPI(query: string): Promise<{ snippets: string[]; urls:
 async function searchDuckDuckGo(query: string): Promise<{ snippets: string[]; urls: string[] }> {
   try {
     // DuckDuckGo Instant Answer API (free, no key needed)
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+    // no_redirect=1 is critical — without it DDG returns HTML redirects, not JSON
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&no_redirect=1&skip_disambig=1`;
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
     if (!res.ok) return { snippets: [], urls: [] };
     
-    const data = await res.json();
+    // Safely parse — DDG occasionally returns empty string or HTML on edge cases
+    const text = await res.text();
+    if (!text || !text.trim().startsWith('{')) {
+      // Not JSON (probably a redirect or empty response) — skip silently
+      return { snippets: [], urls: [] };
+    }
+    
+    const data = JSON.parse(text);
     const snippets: string[] = [];
     const urls: string[] = [];
 
@@ -85,10 +93,11 @@ async function searchDuckDuckGo(query: string): Promise<{ snippets: string[]; ur
 
     return { snippets, urls };
   } catch (e) {
-    console.warn('[IntentDetector] DuckDuckGo failed:', e);
+    // Silent — DDG is best-effort fallback only
     return { snippets: [], urls: [] };
   }
 }
+
 
 function detectSignals(snippets: string[], urls: string[]): IntentSignal[] {
   const signals: IntentSignal[] = [];
