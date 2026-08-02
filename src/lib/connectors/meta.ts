@@ -71,33 +71,34 @@ export class MetaAdLibraryConnector implements Connector {
    */
   private async searchPublicPages(keyword: string, location: string, country: string): Promise<{ results: any[] }> {
     try {
-      // Use Facebook's public search (no auth) to find business pages
-      // This returns pages matching the keyword which can be scraped for contact info
-      const searchUrl = `https://www.facebook.com/public/${encodeURIComponent(keyword.split(' ')[0])}?locale=en_US`;
-      
-      // Alternative: Use DuckDuckGo to find Facebook pages for local businesses
+      // DuckDuckGo Instant Answer API to find Facebook business pages
       const ddgUrl = `https://api.duckduckgo.com/?q=site%3Afacebook.com+${encodeURIComponent(keyword)}+${encodeURIComponent(location)}&format=json&no_redirect=1&no_html=1`;
       
       const res = await fetch(ddgUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' }
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(8000)
       });
       
       if (!res.ok) return { results: [] };
       
-      const data = await res.json();
+      // Safely parse — DDG sometimes returns HTML redirects or empty body
+      const text = await res.text();
+      if (!text || !text.trim().startsWith('{')) return { results: [] };
+      
+      const data = JSON.parse(text);
       const topics = (data.RelatedTopics || []).slice(0, 15);
       
       return {
         results: topics.map((t: any) => ({
           page_name: t.Text?.split(' - ')?.[0]?.trim() || 'Unknown Business',
           source_url: t.FirstURL || '',
-          ad_active_status: 'INFERRED_ACTIVE', // DuckDuckGo result = publicly visible
+          ad_active_status: 'INFERRED_ACTIVE',
           description: t.Text || '',
           _source: 'duckduckgo_fallback'
         })).filter((r: any) => r.page_name && r.page_name !== 'Unknown Business')
       };
     } catch (e) {
-      console.warn('[MetaAds] Fallback search failed:', e);
+      // Silent — fallback is best-effort
       return { results: [] };
     }
   }
