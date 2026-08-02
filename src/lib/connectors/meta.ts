@@ -37,23 +37,26 @@ export class MetaAdLibraryConnector implements Connector {
     }
 
     // PRIMARY: Official Meta Ad Library API (requires token)
+    // Docs: https://developers.facebook.com/docs/marketing-api/reference/ads-archive/
     const url = new URL('https://graph.facebook.com/v19.0/ads_archive');
     url.searchParams.append('access_token', token);
-    url.searchParams.append('ad_reached_countries', countryCode);
+    // ad_reached_countries must be a JSON array, not a bare string
+    url.searchParams.append('ad_reached_countries', JSON.stringify([countryCode]));
     url.searchParams.append('search_terms', query.keyword || 'restaurant');
-    url.searchParams.append('ad_active_status', 'ACTIVE'); // Only ACTIVE ads = businesses spending RIGHT NOW
+    url.searchParams.append('ad_active_status', 'ACTIVE');
     url.searchParams.append('ad_type', 'ALL');
-    // Request fields that help identify the advertiser
-    url.searchParams.append('fields', 'page_name,page_id,ad_creative_bodies,ad_delivery_start_time,advertiser_id');
+    url.searchParams.append('fields', 'page_name,page_id,ad_creative_bodies,ad_delivery_start_time');
     url.searchParams.append('limit', '25');
 
     try {
       const response = await fetch(url.toString());
       if (!response.ok) {
-        console.warn(`[MetaAds] API returned ${response.status}, falling back to public search`);
+        const errBody = await response.text().catch(() => 'no body');
+        console.warn(`[MetaAds] API returned ${response.status}: ${errBody.slice(0, 300)}`);
         return await this.searchPublicPages(query.keyword || 'restaurant', locationStr, countryCode);
       }
       const data = await response.json();
+      console.log(`[MetaAds] API returned ${(data.data || []).length} active ads`);
       return { results: data.data || [] };
     } catch (e) {
       console.warn('[MetaAds] API call failed, falling back to public search:', e);
