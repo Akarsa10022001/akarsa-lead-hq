@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({ success: false, error: 'Supabase URL or Key missing in server environment' }, { status: 500 });
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
   try {
     // 1. Total Leads Count
     const { count: totalLeads } = await supabase
@@ -11,12 +20,16 @@ export async function GET() {
       .select('*', { count: 'exact', head: true });
 
     // 2. Leads Data Query
-    const { data: leads } = await supabase
+    const { data: leads, error } = await supabase
       .from('leads')
       .select('id, company_name, industry, location, email, phone, phone_e164, domain, score_grade, quality_score, created_at')
       .limit(5000);
 
-    const grades = { A: 0, B: 0, C: 0, D: 0, Unknown: 0 };
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    const grades: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, Unknown: 0 };
     let hasEmail = 0;
     let hasPhone = 0;
     let hasWebsite = 0;
