@@ -982,6 +982,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: `Pipeline finished. Saved ${results.length} new leads.`,
+      savedCount: results.length,
       leads: results,
       stats: { ...stats, duration_ms: duration },
       pipeline_log: pipelineLog

@@ -296,7 +296,7 @@ export default function Radar() {
           location: loc,
           businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
           sourceType: sourceId,
-          maxLeads: 10
+          maxLeads: 12
         })
       });
       clearTimeout(timeoutId);

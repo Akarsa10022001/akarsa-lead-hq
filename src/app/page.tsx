@@ -385,7 +385,7 @@ export default function Home() {
                             location: loc,
                             businessType: scanIndustry === 'Auto' ? 'Auto' : cat,
                             sourceType: src,
-                            maxLeads: 10
+                            maxLeads: 12
                           })
                         })
                         .then(async r => {
