@@ -285,7 +285,8 @@ export default function Radar() {
     { id: 'telegram_intent', label: '✈️ Telegram & Social Intent', desc: 'Buying signals from public Telegram groups, Discord & B2B channels', color: 'bg-indigo-950/40 hover:bg-indigo-900/50 border-indigo-800/60 text-indigo-200', dotColor: 'bg-indigo-400' },
   ];
 
-  const getResolvedLocation = () => scanLocation.trim() || 'Indore, India';
+  const AUTO_TARGET_CITIES = ['Dubai, UAE', 'Jaipur, India', 'Surat, India', 'London, UK', 'Chandigarh, India', 'Singapore', 'Austin, USA', 'Bangalore, India', 'Coimbatore, India', 'Sydney, Australia', 'Kochi, India', 'Abu Dhabi, UAE', 'Vadodara, India'];
+  const getResolvedLocation = () => scanLocation.trim() || AUTO_TARGET_CITIES[Math.floor(Math.random() * AUTO_TARGET_CITIES.length)];
   const getResolvedIndustry = () => scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
 
   const handleLaunchScan = async (sourceId: string) => {

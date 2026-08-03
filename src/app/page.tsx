@@ -343,10 +343,10 @@ export default function Home() {
               <div>
                 {/* SHARED CITY + INDUSTRY INPUTS */}
                 <div className="mb-3">
-                  <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground font-bold mb-1 block">🏙️ City / Location</label>
+                  <label className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground font-bold mb-1 block">🏙️ City / Location (Leave blank for Auto-Rotation)</label>
                   <input
                     type="text"
-                    placeholder="E.g. Indore, India · Dubai, UAE"
+                    placeholder="Leave blank to Auto-Rotate fresh cities (Dubai, Jaipur, London...)"
                     value={scanLocation}
                     onChange={(e) => setScanLocation(e.target.value)}
                     className="w-full px-3 py-2 bg-background border border-border mb-2 focus:outline-none focus:border-primary transition-colors text-xs font-mono placeholder:text-muted-foreground rounded-md"
@@ -367,11 +367,12 @@ export default function Home() {
                 {/* MEGA LAUNCH BUTTON */}
                 <button 
                   onClick={async () => {
-                    const loc = scanLocation.trim() || 'Indore, India';
+                    const AUTO_CITIES = ['Dubai, UAE', 'Jaipur, India', 'Surat, India', 'London, UK', 'Chandigarh, India', 'Singapore', 'Austin, USA', 'Bangalore, India', 'Coimbatore, India', 'Sydney, Australia', 'Kochi, India', 'Abu Dhabi, UAE', 'Vadodara, India'];
+                    const loc = scanLocation.trim() || AUTO_CITIES[Math.floor(Math.random() * AUTO_CITIES.length)];
                     const cat = scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
-                    if (!confirm(`⚡ MEGA LAUNCH 8 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 8 scrapers will run in parallel.`)) return;
+                    if (!confirm(`⚡ MEGA LAUNCH 8 Sub-Agent Swarm?\n\nTarget City: ${loc}\nIndustry: ${cat}\n\nAll 8 scrapers will run in parallel.`)) return;
                     setIsScanning(true);
-                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 8 sub-agents across all sources...", type: "success" });
+                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: `Spawning 8 sub-agents for ${loc}...`, type: "success" });
                     try {
                       const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates', 'meta_ads', 'telegram_intent'];
                       const results = await Promise.allSettled(sources.map(src => {
@@ -435,7 +436,8 @@ export default function Home() {
                     <button
                       key={src.id}
                       onClick={async () => {
-                        const loc = scanLocation.trim() || 'Indore, India';
+                        const AUTO_CITIES = ['Dubai, UAE', 'Jaipur, India', 'Surat, India', 'London, UK', 'Chandigarh, India', 'Singapore', 'Austin, USA', 'Bangalore, India', 'Coimbatore, India', 'Sydney, Australia', 'Kochi, India', 'Abu Dhabi, UAE', 'Vadodara, India'];
+                        const loc = scanLocation.trim() || AUTO_CITIES[Math.floor(Math.random() * AUTO_CITIES.length)];
                         const cat = scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
                         setIsScanning(true);
                         setToast({ show: true, title: `Scanning ${src.label}`, desc: `${loc} · ${cat}`, type: "success" });
