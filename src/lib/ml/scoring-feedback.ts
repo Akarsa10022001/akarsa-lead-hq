@@ -145,13 +145,14 @@ export async function runMLReconcileAndTrain() {
   let disqualifiedCount = 0;
   let upgradedToACount = 0;
 
+  // Batch updates in parallel chunks of 50
+  const updatePromises: Promise<any>[] = [];
+
   for (const lead of leads) {
     const mlResult = calculateMLScore(lead, lead.quality_score || lead.score_total || 0);
-
     const updates: any = {};
     let shouldUpdate = false;
 
-    // Disqualify fake social emails
     if (mlResult.isDisqualified && lead.status !== 'Lost') {
       updates.status = 'Lost';
       updates.quality_score = 0;
@@ -172,9 +173,15 @@ export async function runMLReconcileAndTrain() {
     }
 
     if (shouldUpdate) {
-      await supabase.from('leads').update(updates).eq('id', lead.id);
+      updatePromises.push(Promise.resolve(supabase.from('leads').update(updates).eq('id', lead.id)));
       updatedCount++;
     }
+  }
+
+  // Execute in parallel batches of 50
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < updatePromises.length; i += BATCH_SIZE) {
+    await Promise.all(updatePromises.slice(i, i + BATCH_SIZE));
   }
 
   return {
