@@ -369,11 +369,11 @@ export default function Home() {
                   onClick={async () => {
                     const loc = scanLocation.trim() || 'Indore, India';
                     const cat = scanIndustry === 'Auto' ? 'All Industries (Mixed Scrape)' : scanIndustry;
-                    if (!confirm(`⚡ MEGA LAUNCH 7 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 7 scrapers will run in parallel.`)) return;
+                    if (!confirm(`⚡ MEGA LAUNCH 8 Sub-Agent Swarm?\n\nCity: ${loc}\nIndustry: ${cat}\n\nAll 8 scrapers will run in parallel.`)) return;
                     setIsScanning(true);
-                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 7 sub-agents across all sources...", type: "success" });
+                    setToast({ show: true, title: "⚡ Mega Swarm Active", desc: "Spawning 8 sub-agents across all sources...", type: "success" });
                     try {
-                      const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates', 'meta_ads'];
+                      const sources = ['google_maps', 'foursquare', 'osm', 'reddit_intent', 'gdelt_news', 'opencorporates', 'meta_ads', 'telegram_intent'];
                       const results = await Promise.allSettled(sources.map(src => {
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 90000);
@@ -417,10 +417,10 @@ export default function Home() {
                   disabled={isScanning}
                   className="w-full py-3 mb-3 flex justify-center items-center gap-2 bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black font-heading tracking-wider uppercase transition-all shadow-lg active:scale-95 disabled:opacity-50 rounded-md cursor-pointer text-[11px]"
                 >
-                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> 6 AGENTS ACTIVE...</> : "⚡ MEGA LAUNCH ALL 6 SWARMS"}
+                  {isScanning ? <><Loader2 className="w-4 h-4 animate-spin" /> 8 AGENTS ACTIVE...</> : "⚡ MEGA LAUNCH ALL 8 SWARMS"}
                 </button>
 
-                {/* 6 INDIVIDUAL SOURCE BUTTONS */}
+                {/* 8 INDIVIDUAL SOURCE BUTTONS */}
                 <div className="grid grid-cols-1 gap-1.5 mb-3">
                   {[
                     { id: 'google_maps', label: '📍 Google Maps API', color: 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-800/60 text-emerald-200' },
@@ -430,6 +430,7 @@ export default function Home() {
                     { id: 'gdelt_news', label: '📰 GDELT News Triggers', color: 'bg-rose-950/40 hover:bg-rose-900/50 border-rose-800/60 text-rose-200' },
                     { id: 'opencorporates', label: '🏢 OpenCorporates', color: 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-800/60 text-cyan-200' },
                     { id: 'meta_ads', label: '📣 Meta Ads', color: 'bg-blue-950/40 hover:bg-blue-900/50 border-blue-800/60 text-blue-200' },
+                    { id: 'telegram_intent', label: '✈️ Telegram & Social Intent', color: 'bg-indigo-950/40 hover:bg-indigo-900/50 border-indigo-800/60 text-indigo-200' },
                   ].map(src => (
                     <button
                       key={src.id}

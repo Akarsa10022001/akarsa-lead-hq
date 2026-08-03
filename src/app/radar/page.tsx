@@ -273,6 +273,7 @@ export default function Radar() {
     { id: 'gdelt_news', label: '📰 GDELT News Triggers', desc: 'Global news signals & company mentions', color: 'bg-rose-950/40 hover:bg-rose-900/50 border-rose-800/60 text-rose-200', dotColor: 'bg-rose-400' },
     { id: 'opencorporates', label: '🏢 OpenCorporates Registry', desc: 'Company registrations & filings', color: 'bg-cyan-950/40 hover:bg-cyan-900/50 border-cyan-800/60 text-cyan-200', dotColor: 'bg-cyan-400' },
     { id: 'meta_ads', label: '📣 Meta Ad Library', desc: 'Businesses actively running Facebook/Instagram ads — proven budget', color: 'bg-blue-950/40 hover:bg-blue-900/50 border-blue-800/60 text-blue-200', dotColor: 'bg-blue-400' },
+    { id: 'telegram_intent', label: '✈️ Telegram & Social Intent', desc: 'Buying signals from public Telegram groups, Discord & B2B channels', color: 'bg-indigo-950/40 hover:bg-indigo-900/50 border-indigo-800/60 text-indigo-200', dotColor: 'bg-indigo-400' },
   ];
 
   const getResolvedLocation = () => scanLocation.trim() || 'Indore, India';

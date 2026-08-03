@@ -132,11 +132,10 @@ export async function POST(req: Request) {
     // Check if specialized sourceType is requested (Reddit Intent / LinkedIn B2B)
     const sourceType = (config as any).sourceType || 'google_maps';
 
-    if (sourceType === 'reddit_intent') {
-      console.log(`[Discovery] Running Reddit & Community Intent Scanner for query: "${category}" in "${config.location}"...`);
-      const redditConnector = new CommunityIntentConnector();
-      // FIX: Pass actual config.location so leads don't get hardcoded as "Remote / Online Community"
-      const intentLeads = await redditConnector.search(category, config.location);
+    if (sourceType === 'reddit_intent' || sourceType === 'telegram_intent') {
+      console.log(`[Discovery] Running Community & Telegram Intent Scanner for query: "${category}" in "${config.location}"...`);
+      const intentConnector = new CommunityIntentConnector();
+      const intentLeads = await intentConnector.search(category, config.location);
 
       let savedCount = 0;
       for (const item of intentLeads) {
