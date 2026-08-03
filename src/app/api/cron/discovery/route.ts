@@ -422,13 +422,13 @@ export async function POST(req: Request) {
           continue;
         }
 
-        const { data: existingLead } = await supabase
+        const { data: existingLeads } = await supabase
           .from('leads')
           .select('id')
           .eq('company_name', normalized.company_name)
-          .maybeSingle();
+          .limit(1);
 
-        if (!existingLead) {
+        if (!existingLeads || existingLeads.length === 0) {
           rawLeads.push(record);
           newLeadsFound++;
         }
@@ -888,6 +888,18 @@ export async function POST(req: Request) {
       } catch (e) {
         console.warn('[Discovery] Layer 11 failed, using fallback hook.');
         aiHook = isAgencyCategory(category) ? 'Multi-client analytics dashboard' : 'Grow your online presence';
+      }
+
+      // Pre-insert duplicate check safeguard
+      const { data: dupCheck } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('company_name', enriched.company_name)
+        .limit(1);
+
+      if (dupCheck && dupCheck.length > 0) {
+        console.log(`[Discovery] Skipping insert: ${enriched.company_name} already exists in database.`);
+        return;
       }
 
       // ====================================================================

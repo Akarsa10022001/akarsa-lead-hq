@@ -52,6 +52,8 @@ export default function Radar() {
   }, []);
 
   const excludedStatuses = ['won', 'lost', 'dead', 'rejected', 'contacted'];
+  const seenCompanyNames = new Set<string>();
+
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           lead.contact_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -62,7 +64,14 @@ export default function Radar() {
       ? leadStatusLower === statusFilter.toLowerCase() 
       : !excludedStatuses.includes(leadStatusLower);
       
-    return matchesSearch && matchesStatus;
+    if (!matchesSearch || !matchesStatus) return false;
+
+    // Deduplicate identical company names in UI
+    const nameKey = (lead.company_name || '').trim().toLowerCase();
+    if (nameKey && seenCompanyNames.has(nameKey)) return false;
+    if (nameKey) seenCompanyNames.add(nameKey);
+
+    return true;
   });
 
   const handleDeleteLead = async (leadId: string, companyName: string) => {
