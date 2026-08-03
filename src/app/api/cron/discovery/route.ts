@@ -371,13 +371,21 @@ export async function POST(req: Request) {
     let page = cursorData?.page || 0;
     let exhausted = cursorData?.exhausted || false;
 
-    if (exhausted) {
+    if (exhausted && !isManualUiRequest) {
       return NextResponse.json({
         success: true,
         message: `${config.location} fully scanned from ${primarySource} — try another city, category, or data source.`,
+        savedCount: 0,
         leads: [],
         stats: { duration_ms: Date.now() - startTime }
       });
+    }
+
+    if (exhausted && isManualUiRequest) {
+      // Manual UI button click: Reset cursor so Mega Swarm ALWAYS fetches fresh leads
+      exhausted = false;
+      nextToken = undefined;
+      page = 0;
     }
 
     console.log(`[Discovery] Starting loop for ${primarySource}, page: ${page}`);
@@ -407,11 +415,17 @@ export async function POST(req: Request) {
       // Dedupe immediately to see how many NEW leads we got in this page
       for (const record of pageResults) {
         const normalized = connector.normalize(record);
+        if (!normalized.company_name || normalized.company_name === 'Unknown' || normalized.company_name.trim() === '') {
+          // Keep valid raw leads even if company name needs enrichment later
+          rawLeads.push(record);
+          newLeadsFound++;
+          continue;
+        }
+
         const { data: existingLead } = await supabase
           .from('leads')
           .select('id')
           .eq('company_name', normalized.company_name)
-          .eq('location', normalized.location)
           .maybeSingle();
 
         if (!existingLead) {
