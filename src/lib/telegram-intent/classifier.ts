@@ -39,8 +39,10 @@ export async function classifySignal(messageText: string): Promise<SignalClassif
   if (!messageText || messageText.length < 15) return null;
 
   try {
-    const prompt = `Classify this message:\n"${messageText}"`;
-    const responseText = await callLLM(prompt, SYSTEM_PROMPT);
+    const responseText = await callLLM({
+      task: 'telegram_intent_classification',
+      prompt: `${SYSTEM_PROMPT}\n\nClassify this message:\n"${messageText}"`
+    });
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
