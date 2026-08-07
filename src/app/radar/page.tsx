@@ -221,12 +221,37 @@ export default function Radar() {
   const [waIndex, setWaIndex] = useState(0);
   const [waModalOpen, setWaModalOpen] = useState(false);
 
+  const isLikelyMobileNumber = (rawPhone: string): boolean => {
+    if (!rawPhone) return false;
+    const clean = rawPhone.replace(/[^\d+]/g, '');
+
+    // Italy (+39): Mobile numbers start with +39 3... (landlines start with 0 like 06)
+    if (clean.startsWith('+39')) return clean.slice(3).startsWith('3');
+    if (clean.startsWith('39') && clean.length >= 11) return clean.slice(2).startsWith('3');
+
+    // UAE (+971): Mobile numbers start with +971 5... (landlines start with 04, 02, 06)
+    if (clean.startsWith('+971')) return clean.slice(4).startsWith('5') || clean.slice(4).startsWith('05');
+    if (clean.startsWith('971') && clean.length >= 11) return clean.slice(3).startsWith('5') || clean.slice(3).startsWith('05');
+
+    // India (+91): Mobile numbers start with 6, 7, 8, 9
+    if (clean.startsWith('+91')) return /^[6-9]/.test(clean.slice(3).replace(/^0/, ''));
+    if (clean.startsWith('91') && clean.length === 12) return /^[6-9]/.test(clean.slice(2).replace(/^0/, ''));
+
+    // US/Canada Toll-Free (800, 888, 877, etc.)
+    const digits = clean.replace(/\D/g, '').slice(-10);
+    if (digits.length === 10 && ['800','888','877','866','855','844','833'].includes(digits.slice(0, 3))) return false;
+
+    return true;
+  };
+
   const startWaQueue = () => {
     const seenPhones = new Set<string>();
     const phoneLeads: any[] = [];
 
     for (const lead of filteredLeads) {
       if (lead.status !== 'New' || !lead.phone) continue;
+      if (!isLikelyMobileNumber(lead.phone)) continue; // Filter out landlines
+
       const digits = lead.phone.replace(/\D/g, '');
       const phoneKey = digits.length >= 10 ? digits.slice(-10) : digits;
       if (!seenPhones.has(phoneKey)) {
@@ -237,7 +262,7 @@ export default function Radar() {
     }
 
     if (phoneLeads.length === 0) {
-      alert("No new unique phone leads available for WhatsApp.");
+      alert("No new unique mobile leads available for WhatsApp.");
       return;
     }
     setWaQueue(phoneLeads);
