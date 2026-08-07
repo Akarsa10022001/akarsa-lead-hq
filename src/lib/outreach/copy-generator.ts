@@ -33,10 +33,10 @@ export function cleanCompanyName(rawName: string): string {
   // 1. Remove non-Latin characters (Arabic, Devanagari, Chinese, etc.)
   let cleaned = rawName.replace(/[^\x00-\x7F]/g, '').trim();
 
-  // 2. Split on common separators (-, |, :, –, /, @, () and take the main brand portion
-  const separatorMatch = cleaned.split(/[-|:–/@(]/);
-  if (separatorMatch.length > 0 && separatorMatch[0].trim().length > 2) {
-    cleaned = separatorMatch[0].trim();
+  // 2. Split on |, -, :, /, @, (, or location prefixes 'in Via...', 'located in...'
+  const parts = cleaned.split(/\s*[-|:–/@()]\s*|\b(?:in|at|near|located\s+in)\b/i);
+  if (parts.length > 0 && parts[0].trim().length > 2) {
+    cleaned = parts[0].trim();
   }
 
   // 3. Strip legal corporate suffixes & generic noise
@@ -45,7 +45,6 @@ export function cleanCompanyName(rawName: string): string {
   // 4. Remove trailing punctuation & multiple spaces
   cleaned = cleaned.replace(/[.,;]+$/, '').replace(/\s+/g, ' ').trim();
 
-  // 5. If cleaning left nothing or too short, fallback to a smart slice of original
   if (cleaned.length < 2) {
     return rawName.split(' ')[0] || 'your business';
   }
