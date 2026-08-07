@@ -102,11 +102,11 @@ export default function ConsensusSwarm() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full space-y-6">
+      <Header />
+      
+      <main className="md:ml-72 p-4 md:p-8 space-y-6">
           
           {/* Header Banner */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-purple-950/40 via-background to-blue-950/40 p-6 border border-purple-500/20">
@@ -294,7 +294,6 @@ export default function ConsensusSwarm() {
           )}
 
         </main>
-      </div>
     </div>
   );
 }
