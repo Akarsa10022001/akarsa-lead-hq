@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Zap, Target, Mail, Send, Award, Flame, Users, LayoutDashboard, Activity } from "lucide-react";
+import { Zap, Target, Mail, Send, Award, Flame, Users, LayoutDashboard, Activity, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -70,6 +70,12 @@ export default function Sidebar() {
         <div className="pt-4 pb-1">
           <span className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest block font-heading">Dream 25 Engine</span>
         </div>
+        <Link href="/consensus">
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/consensus' ? 'bg-purple-950/60 text-purple-300 border border-purple-500/50' : 'text-muted-foreground border border-transparent hover:border-purple-500/40 hover:bg-purple-950/30 hover:text-purple-300'}`}>
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            <span className="font-semibold text-xs uppercase tracking-wider">Consensus Swarm (8-Agent)</span>
+          </span>
+        </Link>
         <Link href="/dashboard/targets">
           <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/dashboard/targets' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <Users className="w-5 h-5" />
