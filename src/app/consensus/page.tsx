@@ -157,13 +157,21 @@ export default function ConsensusSwarm() {
               <label className="text-xs font-mono text-muted-foreground uppercase tracking-wider block mb-1">
                 Target Industry / Niche
               </label>
-              <input
-                type="text"
+              <select
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                placeholder="E.g. Digital Marketing, Fitness, Dental, Real Estate"
-                className="w-full bg-secondary/50 border border-border px-3 py-2 text-sm focus:outline-none focus:border-purple-500 font-mono"
-              />
+                className="w-full bg-secondary/50 border border-border px-3 py-2 text-sm focus:outline-none focus:border-purple-500 font-mono text-foreground cursor-pointer"
+              >
+                <option value="Auto">Auto (All Industries)</option>
+                <option value="Digital Marketing">Digital Marketing & Agencies</option>
+                <option value="Dental">Dental & Healthcare</option>
+                <option value="Real Estate">Real Estate & Property</option>
+                <option value="Fitness">Fitness & Gyms</option>
+                <option value="Restaurant">Restaurants & Hospitality</option>
+                <option value="SaaS">SaaS & Software</option>
+                <option value="E-Commerce">E-Commerce & Retail</option>
+                <option value="Legal">Legal & Financial Services</option>
+              </select>
             </div>
           </div>
 
