@@ -422,13 +422,13 @@ export default function Radar() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <button
                 onClick={async () => {
-                  if (confirm(`Trigger 1-Click Auto-Outreach across all emailable New leads? This will generate evidence-based personalized emails and send them automatically via your verified Gmail SMTP.`)) {
+                  if (confirm(`Trigger 1-Click Auto-Outreach across all emailable New leads? This will generate evidence-based personalized emails and send them automatically via Resend API (be@akarsaone.xyz).`)) {
                     setLoading(true);
                     try {
                       const res = await fetch("/api/cron/enroll-and-send-bulk", { method: "POST" });
                       const data = await res.json();
                       if (data.success) {
-                        alert(`🎉 1-Click Outreach Success! Dispatched ${data.sentCount} personalized emails via Gmail. ${data.totalRemainingNew} remaining.`);
+                        alert(`🎉 1-Click Outreach Success! Dispatched ${data.sentCount} personalized emails via Resend API (be@akarsaone.xyz). ${data.totalRemainingNew} remaining.`);
                         
                         const sentIds = new Set((data.sentResults || []).map((r: any) => r.id));
                         setLeads(prev => prev.map(l => sentIds.has(l.id) ? { ...l, status: 'Contacted' } : l));
