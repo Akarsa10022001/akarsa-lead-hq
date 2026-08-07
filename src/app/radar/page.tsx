@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2, Send, Target } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { generateSmartOutreachCopy } from "@/lib/outreach/copy-generator";
+import { generateSmartOutreachCopy, cleanCompanyName } from "@/lib/outreach/copy-generator";
 
 export default function Radar() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -222,9 +222,22 @@ export default function Radar() {
   const [waModalOpen, setWaModalOpen] = useState(false);
 
   const startWaQueue = () => {
-    const phoneLeads = filteredLeads.filter(l => l.status === 'New' && l.phone).slice(0, 20);
+    const seenPhones = new Set<string>();
+    const phoneLeads: any[] = [];
+
+    for (const lead of filteredLeads) {
+      if (lead.status !== 'New' || !lead.phone) continue;
+      const digits = lead.phone.replace(/\D/g, '');
+      const phoneKey = digits.length >= 10 ? digits.slice(-10) : digits;
+      if (!seenPhones.has(phoneKey)) {
+        seenPhones.add(phoneKey);
+        phoneLeads.push(lead);
+      }
+      if (phoneLeads.length >= 20) break;
+    }
+
     if (phoneLeads.length === 0) {
-      alert("No new phone leads available for WhatsApp.");
+      alert("No new unique phone leads available for WhatsApp.");
       return;
     }
     setWaQueue(phoneLeads);
@@ -757,19 +770,34 @@ export default function Radar() {
                     Lead {waIndex + 1} of {waQueue.length}
                   </span>
                 </div>
+                {(() => {
+                  const currentLead = waQueue[waIndex];
+                  const copy = generateSmartOutreachCopy({
+                    companyName: currentLead.company_name,
+                    contactName: currentLead.contact_name,
+                    industry: currentLead.industry,
+                    city: currentLead.geo || currentLead.location,
+                    rating: currentLead.rating,
+                    reviewCount: currentLead.review_count,
+                    evidenceText: currentLead.ai_hook_draft,
+                    hasWebsite: !!currentLead.domain
+                  });
+                  return (
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="font-bold text-lg">{cleanCompanyName(currentLead.company_name)}</h3>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          Phone: {currentLead.phone} | Location: {currentLead.geo || currentLead.location || 'N/A'}
+                        </p>
+                      </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-bold text-lg">{waQueue[waIndex].company_name}</h3>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      Phone: {waQueue[waIndex].phone} | Location: {waQueue[waIndex].geo || waQueue[waIndex].location || 'N/A'}
-                    </p>
-                  </div>
-
-                  <div className="p-3 bg-secondary/50 border border-border text-xs font-mono leading-relaxed">
-                    <p className="font-bold text-primary mb-1">Pre-filled WhatsApp Copy:</p>
-                    Hi {waQueue[waIndex].company_name} Team! Saw your profile in {waQueue[waIndex].geo || waQueue[waIndex].location || 'your area'}. We help top local businesses scale revenue with automated client acquisition infrastructure. Would you be open to a quick 5-minute chat?
-                  </div>
+                      <div className="p-3 bg-secondary/50 border border-border text-xs font-mono leading-relaxed text-emerald-300 whitespace-pre-wrap">
+                        <p className="font-bold text-primary mb-1">Pre-filled WhatsApp Copy:</p>
+                        {copy.whatsappMessage}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                   <div className="flex items-center justify-between gap-3 pt-2">
                     <button
@@ -786,7 +814,6 @@ export default function Radar() {
                       <Send className="w-4 h-4" /> Open in WhatsApp Web & Next ➔
                     </button>
                   </div>
-                </div>
               </div>
             </motion.div>
           )}

@@ -27,8 +27,34 @@ const SENDER_FIRST_NAME = 'Ritik';
  * 4. Value-first, pitch-second
  * 5. Includes unsubscribe line for CAN-SPAM compliance
  */
+export function cleanCompanyName(rawName: string): string {
+  if (!rawName) return 'your business';
+
+  // 1. Remove non-Latin characters (Arabic, Devanagari, Chinese, etc.)
+  let cleaned = rawName.replace(/[^\x00-\x7F]/g, '').trim();
+
+  // 2. Split on common separators (-, |, :, –, /, @, () and take the main brand portion
+  const separatorMatch = cleaned.split(/[-|:–/@(]/);
+  if (separatorMatch.length > 0 && separatorMatch[0].trim().length > 2) {
+    cleaned = separatorMatch[0].trim();
+  }
+
+  // 3. Strip legal corporate suffixes & generic noise
+  cleaned = cleaned.replace(/\b(L\.?L\.?C\.?|Inc\.?|Pvt\.?\s*Ltd\.?|Private\s+Limited|Corp\.?|Corporation|Co\.?|Ltd\.?|Company|FZE|FZ-LLC|DMCC|Group)\b/gi, '').trim();
+
+  // 4. Remove trailing punctuation & multiple spaces
+  cleaned = cleaned.replace(/[.,;]+$/, '').replace(/\s+/g, ' ').trim();
+
+  // 5. If cleaning left nothing or too short, fallback to a smart slice of original
+  if (cleaned.length < 2) {
+    return rawName.split(' ')[0] || 'your business';
+  }
+
+  return cleaned;
+}
+
 export function generateSmartOutreachCopy(payload: CopyPayload): GeneratedCopy {
-  const company = payload.companyName || 'your business';
+  const company = cleanCompanyName(payload.companyName || '');
   const firstName = payload.contactName ? payload.contactName.split(' ')[0] : '';
   const greeting = firstName || 'Hi there';
   const city = payload.city || payload.evidenceText?.match(/in ([A-Za-z\s]+)/)?.[1] || '';
