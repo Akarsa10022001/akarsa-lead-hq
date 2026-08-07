@@ -40,9 +40,12 @@ export function cleanCompanyName(rawName: string): string {
   }
 
   // 3. Strip legal corporate suffixes & generic noise
-  cleaned = cleaned.replace(/\b(L\.?L\.?C\.?|Inc\.?|Pvt\.?\s*Ltd\.?|Private\s+Limited|Corp\.?|Corporation|Co\.?|Ltd\.?|Company|FZE|FZ-LLC|DMCC|Group)\b/gi, '').trim();
+  cleaned = cleaned.replace(/\b(L\.?L\.?C\.?|Inc\.?|Pvt\.?\s*Ltd\.?|Private\s+Limited|Corp\.?|Corporation|Co\.?|Ltd\.?|Company|FZE|FZ-LLC|DMCC|Group|Services|Solutions|Pvt|Ltd)\b/gi, '').trim();
 
-  // 4. Remove trailing punctuation & multiple spaces
+  // 4. Strip appended city names from company title (e.g. "GSearch Digital Marketing Company Bangalore" -> "GSearch Digital Marketing")
+  cleaned = cleaned.replace(/\b(Bangalore|Bengaluru|Indore|Mumbai|Delhi|Dubai|Abu Dhabi|London|Austin|Singapore|Sydney|Rome|Milan|New York|Los Angeles)\b/gi, '').trim();
+
+  // 5. Remove trailing punctuation & multiple spaces
   cleaned = cleaned.replace(/[.,;]+$/, '').replace(/\s+/g, ' ').trim();
 
   if (cleaned.length < 2) {
