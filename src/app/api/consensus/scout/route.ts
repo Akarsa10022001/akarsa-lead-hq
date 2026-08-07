@@ -14,12 +14,12 @@ interface AgentVerification {
 
 export async function POST(req: Request) {
   try {
-    const { city = 'Dubai, UAE', industry = 'Auto' } = await req.json();
+    const { city = 'Dubai, UAE', industry = 'Auto', excludeIds = [] } = await req.json();
 
     const targetCity = city.trim() || 'Dubai, UAE';
     const targetIndustry = industry.trim() || 'Auto';
 
-    console.log(`[Consensus Swarm] Initiating 8-Agent consensus scout for ${targetCity} | ${targetIndustry}`);
+    console.log(`[Consensus Swarm] Initiating 8-Agent consensus scout for ${targetCity} | ${targetIndustry} | Excluded: ${excludeIds.length}`);
 
     // Clean search filters
     const searchCity = targetCity.split(',')[0].trim();
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
       .from('leads')
       .select('*')
       .eq('is_test', false)
+      .eq('status', 'New') // Only scout NEW uncontacted targets
       .not('phone', 'is', null)
       .not('email', 'is', null);
 
@@ -42,23 +43,36 @@ export async function POST(req: Request) {
 
     let { data: dbLeads } = await query.order('quality_score', { ascending: false }).limit(50);
 
-    // Fallback to top leads if city/industry filter is too specific
+    // Filter out client-side excluded IDs
+    if (dbLeads && excludeIds.length > 0) {
+      const excludeSet = new Set(excludeIds);
+      dbLeads = dbLeads.filter(l => !excludeSet.has(l.id));
+    }
+
+    // Fallback to top New leads if city/industry filter is too specific
     if (!dbLeads || dbLeads.length === 0) {
-      const { data: fallbackLeads } = await supabase
+      let fallbackQuery = supabase
         .from('leads')
         .select('*')
         .eq('is_test', false)
         .not('phone', 'is', null)
-        .not('email', 'is', null)
-        .order('quality_score', { ascending: false })
-        .limit(50);
-      dbLeads = fallbackLeads;
+        .not('email', 'is', null);
+
+      if (excludeIds.length > 0) {
+        // Exclude seen IDs from fallback
+        const excludeSet = new Set(excludeIds);
+        const { data: allFallback } = await fallbackQuery.order('quality_score', { ascending: false }).limit(100);
+        dbLeads = (allFallback || []).filter(l => !excludeSet.has(l.id));
+      } else {
+        const { data: fallbackLeads } = await fallbackQuery.order('quality_score', { ascending: false }).limit(50);
+        dbLeads = fallbackLeads;
+      }
     }
 
     const candidates = dbLeads || [];
 
     if (candidates.length === 0) {
-      return NextResponse.json({ success: false, error: 'No candidates available for consensus.' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'All targets for this query have been processed or contacted. Try clearing filters or running a new search!' }, { status: 400 });
     }
 
     // Step 2: 8-Agent Cross-Validation & Consensus Scoring

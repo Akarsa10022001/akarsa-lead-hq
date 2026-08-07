@@ -29,12 +29,16 @@ export default function ConsensusSwarm() {
   const [activeAgentIndex, setActiveAgentIndex] = useState(-1);
   const [winner, setWinner] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [seenLeadIds, setSeenLeadIds] = useState<string[]>([]);
 
-  const runConsensusSwarm = async () => {
+  const runConsensusSwarm = async (shouldExcludeCurrent = false) => {
     setIsScanning(true);
     setWinner(null);
     setError(null);
     setActiveAgentIndex(0);
+
+    // Build exclusion list
+    const currentExclusions = shouldExcludeCurrent && winner ? [...seenLeadIds, winner.id] : seenLeadIds;
 
     // Simulate real-time agent collaboration feed animation
     const interval = setInterval(() => {
@@ -51,7 +55,7 @@ export default function ConsensusSwarm() {
       const res = await fetch("/api/consensus/scout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city, industry }),
+        body: JSON.stringify({ city, industry, excludeIds: currentExclusions }),
       });
 
       const data = await res.json();
@@ -60,6 +64,7 @@ export default function ConsensusSwarm() {
       if (data.success && data.winner) {
         setActiveAgentIndex(AGENTS.length - 1);
         setWinner(data.winner);
+        setSeenLeadIds((prev) => Array.from(new Set([...prev, data.winner.id])));
       } else {
         setError(data.error || "Failed to find consensus lead.");
       }
@@ -122,7 +127,7 @@ export default function ConsensusSwarm() {
             </div>
 
             <button
-              onClick={runConsensusSwarm}
+              onClick={() => runConsensusSwarm(false)}
               disabled={isScanning}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-purple-900/30 flex items-center gap-2 disabled:opacity-50"
             >
@@ -305,6 +310,14 @@ export default function ConsensusSwarm() {
                     className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
                   >
                     <MessageSquare className="w-4 h-4" /> Open in WhatsApp Web
+                  </button>
+
+                  <button
+                    onClick={() => runConsensusSwarm(true)}
+                    disabled={isScanning}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-purple-900/60 hover:bg-purple-800/80 border border-purple-500/50 text-purple-200 font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} /> Scout Next Target ➔
                   </button>
                 </div>
               </div>
