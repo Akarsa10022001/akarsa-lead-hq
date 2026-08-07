@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import nodemailer from 'nodemailer';
+import { sendEmailViaResend } from '@/lib/outreach/resend-sender';
 
 export const maxDuration = 300;
 export const runtime = 'nodejs';
@@ -8,13 +8,6 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const user = process.env.GMAIL_USER || 'beakarsa@gmail.com';
-    const pass = process.env.GMAIL_APP_PASSWORD;
-
-    if (!pass) {
-      return NextResponse.json({ error: 'GMAIL_APP_PASSWORD missing' }, { status: 400 });
-    }
-
     // 1. Fetch approved items in touch_queue
     const { data: approvedItems, error: fetchErr } = await supabase
       .from('touch_queue')
@@ -27,11 +20,6 @@ export async function POST(req: Request) {
     if (!approvedItems || approvedItems.length === 0) {
       return NextResponse.json({ success: true, message: 'No approved items pending dispatch.', sentCount: 0 });
     }
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass }
-    });
 
     let sentCount = 0;
     const sentResults = [];
@@ -50,7 +38,7 @@ export async function POST(req: Request) {
       }
 
       let content = item.draft_body || '';
-      let subject = 'Outreach from Akarsa';
+      let subject = `Quick question for ${lead.company_name}`;
 
       const subjectRegex = /^Subject:\s*(.+)$/im;
       const match = content.match(subjectRegex);
@@ -60,12 +48,15 @@ export async function POST(req: Request) {
       }
 
       try {
-        const info = await transporter.sendMail({
-          from: `"Akarsa" <${user}>`,
+        const result = await sendEmailViaResend({
           to: lead.email,
           subject,
           text: content
         });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Resend send failed');
+        }
 
         // Write touch record
         await supabase.from('touches').insert({
@@ -73,9 +64,9 @@ export async function POST(req: Request) {
           channel: item.channel || 'email',
           touch_type: item.touch_type || 'initial_outreach',
           direction: 'outbound',
-          notes: `Automated Gmail SMTP send: ${subject}`,
+          notes: `Automated Resend API send (be@akarsaone.xyz): ${subject}`,
           queue_id: item.id,
-          provider_msg_id: info.messageId,
+          provider_msg_id: result.messageId,
           send_status: 'sent'
         });
 
@@ -83,9 +74,10 @@ export async function POST(req: Request) {
         await supabase.from('touch_queue').update({ status: 'sent' }).eq('id', item.id);
 
         sentCount++;
-        sentResults.push({ id: item.id, company: lead.company_name, recipient: lead.email, messageId: info.messageId });
+        sentResults.push({ id: item.id, company: lead.company_name, recipient: lead.email, messageId: result.messageId });
       } catch (sendError: any) {
         console.error(`Error sending to ${lead.email}:`, sendError.message);
+        await supabase.from('touch_queue').update({ status: 'failed' }).eq('id', item.id);
       }
     }
 

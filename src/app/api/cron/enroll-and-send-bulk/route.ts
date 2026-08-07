@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import nodemailer from 'nodemailer';
+import { sendEmailViaResend } from '@/lib/outreach/resend-sender';
 import { generateSmartOutreachCopy } from '@/lib/outreach/copy-generator';
 
 export const maxDuration = 300;
@@ -9,9 +9,6 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const user = process.env.GMAIL_USER || 'beakarsa@gmail.com';
-    const pass = process.env.GMAIL_APP_PASSWORD || 'kjdoqgnjdgcvmnrx';
-
     // 1. Fetch all 'New' leads with an email
     let allLeads: any[] = [];
     let pageIndex = 0;
@@ -54,11 +51,6 @@ export async function POST(req: Request) {
       signalsByLead[s.lead_id] = s;
     });
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass }
-    });
-
     const { data: defaultSeq } = await supabase.from('sequences').select('id').limit(1);
     const sequenceId = defaultSeq?.[0]?.id;
 
@@ -84,12 +76,15 @@ export async function POST(req: Request) {
       });
 
       try {
-        const info = await transporter.sendMail({
-          from: `"Akarsa" <${user}>`,
+        const result = await sendEmailViaResend({
           to: lead.email,
           subject: copy.subject,
           text: copy.body
         });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Resend send failed');
+        }
 
         // Create target_sequence if missing
         const { data: targetSeq } = await supabase
@@ -99,7 +94,7 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         let targetId = targetSeq?.id;
-        if (!targetId) {
+        if (!targetId && sequenceId) {
           const { data: newTarget } = await supabase
             .from('target_sequences')
             .insert({
@@ -120,15 +115,15 @@ export async function POST(req: Request) {
           channel: 'email',
           touch_type: 'initial_outreach',
           direction: 'outbound',
-          notes: `Smart Bulk Outreach: ${copy.subject}`,
-          provider_msg_id: info.messageId,
+          notes: `Smart Bulk Outreach via Resend (be@akarsaone.xyz): ${copy.subject}`,
+          provider_msg_id: result.messageId,
           send_status: 'sent'
         });
 
         await supabase.from('leads').update({ status: 'Contacted' }).eq('id', lead.id);
 
         sentCount++;
-        sentResults.push({ id: lead.id, company: lead.company_name, email: lead.email, messageId: info.messageId });
+        sentResults.push({ id: lead.id, company: lead.company_name, email: lead.email, messageId: result.messageId });
       } catch (sendErr: any) {
         console.error(`Bulk send error for ${lead.company_name}:`, sendErr.message);
       }
