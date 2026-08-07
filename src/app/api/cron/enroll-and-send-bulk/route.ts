@@ -57,8 +57,8 @@ export async function POST(req: Request) {
     let sentCount = 0;
     const sentResults = [];
 
-    // Process batch of 25 leads per click
-    const leadsToProcess = allLeads.slice(0, 25);
+    // Process batch of 50 leads per click
+    const leadsToProcess = allLeads.slice(0, 50);
 
     for (const lead of leadsToProcess) {
       const signal = signalsByLead[lead.id] || {};
