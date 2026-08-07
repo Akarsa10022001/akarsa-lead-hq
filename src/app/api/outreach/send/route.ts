@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { sendWhatsAppTemplate } from '@/lib/outreach/whatsapp';
-import nodemailer from 'nodemailer';
+import { sendEmailViaResend } from '@/lib/outreach/resend-sender';
 
 export async function POST(req: Request) {
   try {
@@ -44,7 +44,8 @@ export async function POST(req: Request) {
     const sequenceId = sequence.id;
 
     // 4. Send Message (WhatsApp or Email)
-    let sendResult = null;
+    let sendResult: any = null;
+
     if (channel === 'whatsapp') {
       if (!lead.phone && !testPhone) {
          throw new Error("Lead does not have a phone number for WhatsApp.");
@@ -52,41 +53,48 @@ export async function POST(req: Request) {
       
       const phoneToSend = testPhone ? testPhone.replace(/\D/g, '') : lead.phone.replace(/\D/g, '');
 
-      // Instead of relying on the Meta Cloud API (which requires approved templates and expiring tokens),
-      // we generate a direct wa.me link for the prospector to send the personalized draft directly.
-      sendResult = {
-        type: "wa.me",
-        url: `https://wa.me/${phoneToSend}?text=${encodeURIComponent(emailBody)}`
-      };
-    } else if (channel === 'email') {
-      const isGenericSmtp = !!process.env.SMTP_HOST;
-      const user = isGenericSmtp ? process.env.SMTP_USER : process.env.GMAIL_USER;
-      const pass = isGenericSmtp ? process.env.SMTP_PASS : process.env.GMAIL_APP_PASSWORD;
-
-      if (!user || !pass) {
-        throw new Error("Email credentials (GMAIL_USER/GMAIL_APP_PASSWORD or SMTP_USER/SMTP_PASS) are not configured.");
+      try {
+        // Try sending via Meta Cloud API with the approved template
+        sendResult = await sendWhatsAppTemplate({
+          to: phoneToSend,
+          templateName: templateName || 'akarsa_intro',
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: lead.contact_name || lead.company_name || 'there' },
+                { type: 'text', text: (emailBody || '').substring(0, 500) }
+              ]
+            }
+          ]
+        });
+      } catch (waError: any) {
+        // If WhatsApp API fails (expired token, no template, etc.), 
+        // generate wa.me link as fallback for manual send
+        console.warn('[Outreach] WhatsApp API failed, generating manual link:', waError.message);
+        sendResult = {
+          type: "wa.me_fallback",
+          url: `https://wa.me/${phoneToSend}?text=${encodeURIComponent(emailBody || '')}`,
+          apiError: waError.message
+        };
       }
-      
-      const transporterOptions: any = isGenericSmtp ? {
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-        auth: { user, pass }
-      } : {
-        service: 'gmail',
-        auth: { user, pass }
-      };
+    } else if (channel === 'email') {
+      const recipientEmail = targetEmail || lead.email;
+      if (!recipientEmail) {
+        throw new Error("Lead does not have an email address.");
+      }
 
-      const transporter = nodemailer.createTransport(transporterOptions);
-
-      const info = await transporter.sendMail({
-        from: `"Akarsa" <${user}>`,
-        to: targetEmail,
-        subject: emailSubject,
-        text: emailBody,
+      const result = await sendEmailViaResend({
+        to: recipientEmail,
+        subject: emailSubject || `Quick question for ${lead.company_name}`,
+        text: emailBody || '',
       });
 
-      sendResult = info;
+      if (!result.success) {
+        throw new Error(result.error || 'Email send failed');
+      }
+
+      sendResult = { messageId: result.messageId, provider: 'resend' };
     }
 
     // 5. Log the sent message
@@ -96,9 +104,9 @@ export async function POST(req: Request) {
         sequence_id: sequenceId,
         step_number: 1,
         channel: channel,
-        draft_content: `Template: ${templateName || 'akarsa_initial_contact'}`,
+        draft_content: `Template: ${templateName || 'akarsa_intro'}`,
         sent_at: new Date().toISOString(),
-        status: 'sent'
+        status: sendResult?.type === 'wa.me_fallback' ? 'pending_manual' : 'sent'
       });
 
     await supabase

@@ -16,49 +16,107 @@ export interface GeneratedCopy {
   whatsappMessage: string;
 }
 
+const SENDER_FIRST_NAME = 'Ritik';
+
+/**
+ * Generates personal, conversational outreach copy designed to land in inbox
+ * and get replies. Rules:
+ * 1. Subject lines: Short, curiosity-driven, NO company name
+ * 2. Body: 3-4 sentences MAX, ends with a specific question
+ * 3. From a real person, not "Akarsa Team"
+ * 4. Value-first, pitch-second
+ * 5. Includes unsubscribe line for CAN-SPAM compliance
+ */
 export function generateSmartOutreachCopy(payload: CopyPayload): GeneratedCopy {
-  const company = payload.companyName || 'Team';
-  const firstName = payload.contactName ? payload.contactName.split(' ')[0] : 'Team';
-  const city = payload.city || payload.evidenceText?.match(/in ([A-Za-z\s]+)/)?.[1] || 'your area';
-  const industry = payload.industry || 'local business';
-  const rating = payload.rating || 4.5;
-  const reviews = payload.reviewCount || 30;
+  const company = payload.companyName || 'your business';
+  const firstName = payload.contactName ? payload.contactName.split(' ')[0] : '';
+  const greeting = firstName || 'Hi there';
+  const city = payload.city || payload.evidenceText?.match(/in ([A-Za-z\s]+)/)?.[1] || '';
+  const industry = payload.industry || 'business';
+  const rating = payload.rating || 0;
+  const reviews = payload.reviewCount || 0;
 
   const isAgency = /agency|digital marketing|marketing|media|advertising|seo|web design/i.test(`${company} ${industry}`);
   const isNoWebsite = payload.signalType === 'no_website_on_listing' || payload.hasWebsite === false;
   const isHighRep = payload.signalType === 'strong_reputation' || rating >= 4.2;
 
-  // 1. AGENCY TEMPLATE (High Respect, White-Label/Bandwidth focus)
+  const unsubscribe = `\n\nP.S. If this isn't relevant, just reply "stop" and I won't reach out again.`;
+
+  // ──────────────────────────────────────────────
+  // 1. AGENCY TEMPLATE
+  // ──────────────────────────────────────────────
   if (isAgency) {
-    const subject = `${firstName} — quick question on ${company}'s execution capacity`;
-    const body = `Hey ${firstName},\n\nI came across ${company} while looking into top marketing & digital teams in ${city}. Impressive work you're doing.\n\nQuick question — are you guys taking on white-label technical execution right now, or currently capped on fulfillment bandwidth?\n\nWe build custom client acquisition & analytics infrastructure that agencies white-label directly for their clients.\n\nWould you be open to a brief 3-minute look to see if this could save your team technical hours?\n\nBest regards,\nAkarsa Team`;
-    const whatsappMessage = `Hey ${firstName}! Saw ${company}'s work in ${city}. Are you guys currently open to white-label technical fulfillment support for your client pipeline? We build automated lead engines that agencies white-label. Worth a 2-min chat?`;
+    const subject = `quick question about bandwidth`;
+    const body = `${greeting},
+
+Found ${company}${city ? ` in ${city}` : ''} — looks like you're doing solid work.
+
+Are you currently at capacity on technical execution, or would you be open to offloading some fulfillment? We white-label web builds and lead systems for agencies.
+
+Either way, no pressure — just curious if it's something you've explored.
+
+— ${SENDER_FIRST_NAME}${unsubscribe}`;
+
+    const whatsappMessage = `Hey${firstName ? ` ${firstName}` : ''}! Found ${company}${city ? ` in ${city}` : ''}. Quick q — are you at capacity on technical execution or open to white-label support? We do web builds + lead systems for agencies. Worth a 2 min chat?`;
 
     return { subject, body, whatsappMessage };
   }
 
-  // 2. NO WEBSITE TEMPLATE (Direct conversion focus)
+  // ──────────────────────────────────────────────
+  // 2. NO WEBSITE TEMPLATE
+  // ──────────────────────────────────────────────
   if (isNoWebsite) {
-    const subject = `Website & booking link for ${company} in ${city}`;
-    const body = `Hey ${firstName},\n\nI was looking up ${industry} providers in ${city} and noticed ${company} has a strong ${rating}★ rating on Google (${reviews} reviews).\n\nHowever, I noticed your Google listing doesn't have an official website or direct booking link attached. You're likely missing out on 30-40% of high-intent mobile searchers who look for instant booking.\n\nWe build high-converting, mobile-first websites specifically designed for ${industry} in ${city}.\n\nWould you like me to send over a 10-second preview of what your site could look like?\n\nBest regards,\nAkarsa Team`;
-    const whatsappMessage = `Hey ${firstName}! Saw ${company}'s ${rating}★ Google profile in ${city}. Noticed you don't have an official website linked yet — mobile searchers are likely bouncing to competitors. Would you like a quick 10-second site preview for ${company}?`;
+    const subject = `noticed something about your Google listing`;
+    const body = `${greeting},
+
+Was looking up ${industry} options${city ? ` in ${city}` : ''} and came across ${company}${rating ? ` — ${rating}★` : ''}.${reviews ? ` ${reviews} reviews is impressive.` : ''}
+
+One thing I noticed: your listing doesn't link to a website. You're probably losing walk-in traffic from people who Google you on their phone and can't find a booking page.
+
+Would it help if I mocked up a quick site preview? Takes me 10 minutes, no strings attached.
+
+— ${SENDER_FIRST_NAME}${unsubscribe}`;
+
+    const whatsappMessage = `Hey${firstName ? ` ${firstName}` : ''}! Saw ${company}${city ? ` in ${city}` : ''}${rating ? ` (${rating}★)` : ''}. Noticed there's no website linked on your Google profile — you might be losing mobile searchers. Want me to mock up a quick preview? No charge, just 10 min.`;
 
     return { subject, body, whatsappMessage };
   }
 
-  // 3. HIGH REPUTATION TEMPLATE (Leverage social proof)
+  // ──────────────────────────────────────────────
+  // 3. HIGH REPUTATION TEMPLATE
+  // ──────────────────────────────────────────────
   if (isHighRep) {
-    const subject = `Quick note on ${company}'s ${rating}★ GMB rating`;
-    const body = `Hey ${firstName},\n\nCongrats on keeping a stellar ${rating}★ rating with ${reviews} reviews for ${company} in ${city} — that customer trust is hard to build.\n\nWith that reputation, setting up automated SMS & WhatsApp review follow-ups could easily double your monthly inbound leads without spending a single dollar on ads.\n\nWe build automated lead capture & review conversion systems for top local leaders.\n\nOpen to a 5-minute chat to see how it works for ${company}?\n\nBest regards,\nAkarsa Team`;
-    const whatsappMessage = `Hey ${firstName}! Congrats on the ${rating}★ rating across ${reviews} reviews for ${company} in ${city}. We help top local businesses turn that reputation into 2x more booked clients via automated lead follow-ups. Worth a 2-min chat?`;
+    const subject = `your ${rating}★ rating — quick idea`;
+    const body = `${greeting},
+
+${rating}★ across ${reviews} reviews for ${company}${city ? ` in ${city}` : ''} — that's not easy to build. Congrats.
+
+Most businesses with reviews like yours are leaving money on the table because they don't have automated follow-ups converting satisfied customers into repeat bookings.
+
+Would you be open to a 5-minute call this week to see if that's happening for you too?
+
+— ${SENDER_FIRST_NAME}${unsubscribe}`;
+
+    const whatsappMessage = `Hey${firstName ? ` ${firstName}` : ''}! ${rating}★ with ${reviews} reviews for ${company}${city ? ` in ${city}` : ''} — impressive. Most businesses with reviews like yours are leaving repeat bookings on the table. Open to a quick 5-min chat about it?`;
 
     return { subject, body, whatsappMessage };
   }
 
-  // 4. GENERAL LOCAL LEADER TEMPLATE
-  const subject = `${company} x local growth in ${city}`;
-  const body = `Hey ${firstName},\n\nI was looking into established ${industry} providers in ${city} and came across ${company}.\n\n${payload.evidenceText ? `Noticed: ${payload.evidenceText}.` : `You've built a strong footprint in ${city}.`}\n\nWe help local business leaders automate lead follow-ups so missed calls and after-hours inquiries automatically convert into booked appointments.\n\nWould you be open to a quick 5-minute chat this week to see if this fits your current goals?\n\nBest regards,\nAkarsa Team`;
-  const whatsappMessage = `Hey ${firstName}! Saw ${company}'s profile in ${city}. We help local businesses convert missed calls and map inquiries into booked clients automatically. Open to a quick 2-min chat?`;
+  // ──────────────────────────────────────────────
+  // 4. GENERAL TEMPLATE
+  // ──────────────────────────────────────────────
+  const subject = `quick question for ${company.split(' ').slice(0, 2).join(' ')}`;
+  const body = `${greeting},
+
+Came across ${company}${city ? ` in ${city}` : ''}.${payload.evidenceText ? ` ${payload.evidenceText}.` : ''}
+
+We help local businesses set up automated lead follow-ups so missed calls and after-hours inquiries turn into booked appointments instead of lost revenue.
+
+Is that something ${company} struggles with, or do you have it covered?
+
+— ${SENDER_FIRST_NAME}${unsubscribe}`;
+
+  const whatsappMessage = `Hey${firstName ? ` ${firstName}` : ''}! Came across ${company}${city ? ` in ${city}` : ''}. We help businesses convert missed calls into booked appointments automatically. Is that something you'd want to explore?`;
 
   return { subject, body, whatsappMessage };
 }

@@ -1,8 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
 
 export interface MLFeatureWeights {
   no_website_on_listing: number;  // Learned: High need for web services
@@ -105,7 +111,7 @@ export async function runMLReconcileAndTrain() {
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('leads')
       .select('*')
       .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
@@ -119,8 +125,8 @@ export async function runMLReconcileAndTrain() {
     }
   }
 
-  const { data: msgs } = await supabase.from('outreach_messages').select('*');
-  const { data: touches } = await supabase.from('touches').select('*');
+  const { data: msgs } = await getSupabase().from('outreach_messages').select('*');
+  const { data: touches } = await getSupabase().from('touches').select('*');
 
   // Compute channel statistics
   let whatsappSent = 0, whatsappReceived = 0;
@@ -173,7 +179,7 @@ export async function runMLReconcileAndTrain() {
     }
 
     if (shouldUpdate) {
-      updatePromises.push(Promise.resolve(supabase.from('leads').update(updates).eq('id', lead.id)));
+      updatePromises.push(Promise.resolve(getSupabase().from('leads').update(updates).eq('id', lead.id)));
       updatedCount++;
     }
   }

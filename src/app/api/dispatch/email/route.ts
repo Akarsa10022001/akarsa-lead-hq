@@ -1,26 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import nodemailer from 'nodemailer';
+import { sendEmailViaResend } from '@/lib/outreach/resend-sender';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { queueId, targetEmail, emailSubject, emailBody } = body;
-
-    const user = process.env.GMAIL_USER || 'beakarsa@gmail.com';
-    const pass = process.env.GMAIL_APP_PASSWORD;
-
-    if (!pass) {
-      return NextResponse.json({
-        error: 'MISSING_CREDENTIALS',
-        message: 'GMAIL_APP_PASSWORD is not set in environment.'
-      }, { status: 400 });
-    }
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass }
-    });
 
     let queueItem = null;
     let recipientEmail = targetEmail;
@@ -53,15 +38,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'RECIPIENT_EMAIL_MISSING', message: 'No target email provided.' }, { status: 400 });
     }
 
-    // Send email via Gmail SMTP
-    const info = await transporter.sendMail({
-      from: `"Akarsa" <${user}>`,
+    // Send email via Resend API (from be@akarsaone.xyz)
+    const result = await sendEmailViaResend({
       to: recipientEmail,
       subject,
-      text: content
+      text: content,
     });
 
-    console.log("Email dispatched via Gmail SMTP:", info.messageId);
+    if (!result.success) {
+      throw new Error(result.error || 'Email send failed');
+    }
+
+    console.log("Email dispatched via Resend:", result.messageId);
 
     // Record touch in Supabase DB with provider_msg_id
     if (queueItem) {
@@ -70,9 +58,9 @@ export async function POST(req: Request) {
         channel: 'email',
         touch_type: queueItem.touch_type || 'initial_outreach',
         direction: 'outbound',
-        notes: `Outbound email dispatched via Gmail SMTP: ${subject}`,
+        notes: `Outbound email via Resend (be@akarsaone.xyz): ${subject}`,
         queue_id: queueItem.id,
-        provider_msg_id: info.messageId,
+        provider_msg_id: result.messageId,
         send_status: 'sent'
       });
 
@@ -81,11 +69,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      messageId: info.messageId,
+      messageId: result.messageId,
       recipient: recipientEmail
     });
   } catch (error: any) {
-    console.error("Gmail dispatch error:", error.message);
+    console.error("Resend dispatch error:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

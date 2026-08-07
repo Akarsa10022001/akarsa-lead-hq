@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import nodemailer from 'nodemailer';
+import { sendEmailViaResend } from '@/lib/outreach/resend-sender';
 
 export async function GET() {
   try {
@@ -84,7 +84,7 @@ export async function PATCH(req: Request) {
   }
 }
 
-// Bulk Approvals & Immediate Gmail Dispatch
+// Bulk Approvals & Immediate Resend Dispatch (replaces Gmail SMTP)
 export async function POST(req: Request) {
   try {
     const { ids, approved_by } = await req.json();
@@ -106,16 +106,10 @@ export async function POST(req: Request) {
 
     if (error) throw error;
 
-    // 2. Immediately dispatch approved items via Gmail SMTP
-    const user = process.env.GMAIL_USER || 'beakarsa@gmail.com';
-    const pass = process.env.GMAIL_APP_PASSWORD || 'kjdoqgnjdgcvmnrx';
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass }
-    });
-
+    // 2. Immediately dispatch approved items via Resend API
     let dispatchedCount = 0;
+    let failedCount = 0;
+    const errors: string[] = [];
 
     if (approvedItems && approvedItems.length > 0) {
       for (const item of approvedItems) {
@@ -125,11 +119,16 @@ export async function POST(req: Request) {
           .eq('id', item.target_id)
           .single();
 
-        if (!lead || !lead.email || !lead.email.includes('@')) continue;
+        if (!lead || !lead.email || !lead.email.includes('@')) {
+          errors.push(`Lead ${item.target_id}: No valid email`);
+          failedCount++;
+          continue;
+        }
 
         let content = item.draft_body || '';
-        let subject = `Outreach from Akarsa for ${lead.company_name}`;
+        let subject = `Quick question for ${lead.company_name}`;
 
+        // Extract subject if present in draft_body
         const subjectRegex = /^Subject:\s*(.+)$/im;
         const match = content.match(subjectRegex);
         if (match) {
@@ -138,21 +137,24 @@ export async function POST(req: Request) {
         }
 
         try {
-          const info = await transporter.sendMail({
-            from: `"Akarsa" <${user}>`,
+          const result = await sendEmailViaResend({
             to: lead.email,
             subject,
-            text: content
+            text: content,
           });
+
+          if (!result.success) {
+            throw new Error(result.error || 'Resend send failed');
+          }
 
           await supabase.from('touches').insert({
             target_id: item.target_id,
             channel: item.channel || 'email',
             touch_type: item.touch_type || 'initial_outreach',
             direction: 'outbound',
-            notes: `Automated Gmail SMTP Send: ${subject}`,
+            notes: `Sent via Resend (be@akarsaone.xyz): ${subject}`,
             queue_id: item.id,
-            provider_msg_id: info.messageId,
+            provider_msg_id: result.messageId,
             send_status: 'sent'
           });
 
@@ -161,14 +163,22 @@ export async function POST(req: Request) {
 
           dispatchedCount++;
         } catch (sendErr: any) {
-          console.error(`Gmail send error for ${lead.email}:`, sendErr.message);
+          console.error(`Resend send error for ${lead.email}:`, sendErr.message);
+          errors.push(`${lead.email}: ${sendErr.message}`);
+
+          // Mark as failed in queue so it can be retried
+          await supabase.from('touch_queue').update({ status: 'failed' }).eq('id', item.id);
+          failedCount++;
         }
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully approved ${ids.length} items and dispatched ${dispatchedCount} live emails to Gmail Sent box.`
+      message: `Approved ${ids.length} items. Dispatched ${dispatchedCount} via Resend, ${failedCount} failed.`,
+      dispatched: dispatchedCount,
+      failed: failedCount,
+      errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
