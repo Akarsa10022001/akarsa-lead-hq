@@ -49,30 +49,10 @@ export async function POST(req: Request) {
       dbLeads = dbLeads.filter(l => !excludeSet.has(l.id));
     }
 
-    // Fallback to top New leads if city/industry filter is too specific
-    if (!dbLeads || dbLeads.length === 0) {
-      let fallbackQuery = supabase
-        .from('leads')
-        .select('*')
-        .eq('is_test', false)
-        .not('phone', 'is', null)
-        .not('email', 'is', null);
-
-      if (excludeIds.length > 0) {
-        // Exclude seen IDs from fallback
-        const excludeSet = new Set(excludeIds);
-        const { data: allFallback } = await fallbackQuery.order('quality_score', { ascending: false }).limit(100);
-        dbLeads = (allFallback || []).filter(l => !excludeSet.has(l.id));
-      } else {
-        const { data: fallbackLeads } = await fallbackQuery.order('quality_score', { ascending: false }).limit(50);
-        dbLeads = fallbackLeads;
-      }
-    }
-
     const candidates = dbLeads || [];
 
     if (candidates.length === 0) {
-      return NextResponse.json({ success: false, error: 'All targets for this query have been processed or contacted. Try clearing filters or running a new search!' }, { status: 400 });
+      return NextResponse.json({ success: false, error: `No uncontacted leads found for ${targetIndustry} in ${targetCity}. Try another city or industry!` }, { status: 400 });
     }
 
     // Step 2: 8-Agent Cross-Validation & Consensus Scoring
