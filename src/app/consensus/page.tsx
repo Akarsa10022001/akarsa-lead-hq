@@ -241,6 +241,16 @@ export default function ConsensusSwarm() {
                 </div>
               </div>
 
+              {/* Pain Problem & Conversion Opportunity Box */}
+              {winner.painProblem && (
+                <div className="p-3.5 bg-amber-950/30 border border-amber-500/40 text-amber-200 text-xs font-mono">
+                  <span className="font-bold text-amber-400 block uppercase tracking-wider mb-1">
+                    🎯 Identified Pain Problem & Offer Opportunity:
+                  </span>
+                  {winner.painProblem}
+                </div>
+              )}
+
               {/* 8-Agent Verification Matrix */}
               <div>
                 <h3 className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">

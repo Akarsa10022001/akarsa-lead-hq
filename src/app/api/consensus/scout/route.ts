@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
-import { cleanCompanyName, generateSmartOutreachCopy } from '@/lib/outreach/copy-generator';
+import { cleanCompanyName, cleanCityName, generateSmartOutreachCopy } from '@/lib/outreach/copy-generator';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -21,20 +21,39 @@ export async function POST(req: Request) {
 
     console.log(`[Consensus Swarm] Initiating 8-Agent consensus scout for ${targetCity} | ${targetIndustry}`);
 
-    // Step 1: Run sub-agent sources in parallel
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'https://akarsa-lead-hq.vercel.app';
+    // Clean search filters
+    const searchCity = targetCity.split(',')[0].trim();
+    const searchIndustry = (targetIndustry === 'Auto' || targetIndustry === 'All') ? '' : targetIndustry.trim();
 
-    // 1. Fetch recent candidates from DB or trigger discovery
-    const { data: dbLeads } = await supabase
+    let query = supabase
       .from('leads')
       .select('*')
       .eq('is_test', false)
       .not('phone', 'is', null)
-      .not('email', 'is', null)
-      .order('quality_score', { ascending: false })
-      .limit(50);
+      .not('email', 'is', null);
+
+    if (searchCity) {
+      query = query.or(`geo.ilike.%${searchCity}%,location.ilike.%${searchCity}%`);
+    }
+
+    if (searchIndustry) {
+      query = query.or(`industry.ilike.%${searchIndustry}%,category.ilike.%${searchIndustry}%`);
+    }
+
+    let { data: dbLeads } = await query.order('quality_score', { ascending: false }).limit(50);
+
+    // Fallback to top leads if city/industry filter is too specific
+    if (!dbLeads || dbLeads.length === 0) {
+      const { data: fallbackLeads } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('is_test', false)
+        .not('phone', 'is', null)
+        .not('email', 'is', null)
+        .order('quality_score', { ascending: false })
+        .limit(50);
+      dbLeads = fallbackLeads;
+    }
 
     const candidates = dbLeads || [];
 
@@ -167,9 +186,23 @@ export async function POST(req: Request) {
         });
       }
 
+      // Compute Pain Problem & Conversion Opportunity
+      let painProblem = "";
+      if (!lead.domain) {
+        painProblem = "🔴 Missing official website link on Google profile. Losing ~35% of mobile searchers to local competitors.";
+      } else if (!isMetaAdSpender) {
+        painProblem = "🟡 Not running Meta/Google paid ads. Relying 100% on organic word-of-mouth with zero ad leverage.";
+      } else if (lead.rating >= 4.5) {
+        painProblem = `🟢 High ${lead.rating}★ reputation (${lead.review_count || 10}+ reviews) with zero automated review-to-client booking funnel.`;
+      } else {
+        painProblem = "⚡ Missed call & after-hours inquiries not automatically converting into booked appointments.";
+      }
+
       return {
         lead,
         cleanName: cleanCompanyName(lead.company_name),
+        cleanCity: cleanCityName(lead.geo || lead.location, targetCity),
+        painProblem,
         consensusScore: Math.min(99, consensusScore),
         verifications
       };
@@ -185,7 +218,7 @@ export async function POST(req: Request) {
       companyName: winner.lead.company_name,
       contactName: winner.lead.contact_name,
       industry: winner.lead.industry,
-      city: winner.lead.geo || winner.lead.location,
+      city: winner.cleanCity,
       rating: winner.lead.rating,
       reviewCount: winner.lead.review_count,
       evidenceText: winner.lead.ai_hook_draft,
@@ -202,12 +235,14 @@ export async function POST(req: Request) {
         contactName: winner.lead.contact_name || 'Business Owner',
         email: winner.lead.email,
         phone: winner.lead.phone,
-        city: winner.lead.geo || winner.lead.location || targetCity,
+        city: winner.cleanCity,
+        rawAddress: winner.lead.geo || winner.lead.location || targetCity,
         industry: winner.lead.industry || targetIndustry,
         rating: winner.lead.rating,
         reviewCount: winner.lead.review_count,
         domain: winner.lead.domain,
         consensusScore: winner.consensusScore,
+        painProblem: winner.painProblem,
         verifications: winner.verifications,
         masterCopy
       }
