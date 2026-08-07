@@ -25,34 +25,76 @@ export async function POST(req: Request) {
     const searchCity = targetCity.split(',')[0].trim();
     const searchIndustry = (targetIndustry === 'Auto' || targetIndustry === 'All') ? '' : targetIndustry.trim();
 
-    let query = supabase
-      .from('leads')
-      .select('*')
-      .eq('is_test', false)
-      .eq('status', 'New') // Only scout NEW uncontacted targets
-      .not('phone', 'is', null)
-      .not('email', 'is', null);
+    // 1. Clever Keyword Tokenization (Fuzzy Matching)
+    // "E-Commerce & Retail" -> ["E-Commerce", "Retail"]
+    const industryKeywords = searchIndustry
+      .replace(/&/g, ' ')
+      .replace(/\b(and|or|Agency|Agencies|Services|Service|Firms|Firm|Consultants|Consultant|Clinics|Clinic|Cafés|Cafes)\b/gi, '')
+      .split(' ')
+      .map((k: string) => k.trim())
+      .filter((k: string) => k.length > 2);
 
-    if (searchCity) {
-      query = query.or(`geo.ilike.%${searchCity}%,location.ilike.%${searchCity}%`);
-    }
+    const industryOrString = industryKeywords.length > 0
+      ? industryKeywords.map((kw: string) => `industry.ilike.%${kw}%,category.ilike.%${kw}%`).join(',')
+      : `industry.ilike.%${searchIndustry}%,category.ilike.%${searchIndustry}%`;
 
-    if (searchIndustry) {
-      query = query.or(`industry.ilike.%${searchIndustry}%,category.ilike.%${searchIndustry}%`);
-    }
+    const cityOrString = `geo.ilike.%${searchCity}%,location.ilike.%${searchCity}%`;
 
-    let { data: dbLeads } = await query.order('quality_score', { ascending: false }).limit(50);
-
-    // Filter out client-side excluded IDs
+    // --- TIER 1: EXACT MATCH (City + Industry) ---
+    let queryT1 = supabase.from('leads').select('*').eq('is_test', false).eq('status', 'New').not('phone', 'is', null).not('email', 'is', null);
+    if (searchCity) queryT1 = queryT1.or(cityOrString);
+    if (searchIndustry) queryT1 = queryT1.or(industryOrString);
+    
+    let { data: dbLeads } = await queryT1.order('quality_score', { ascending: false }).limit(50);
+    
+    // Filter excluded IDs
     if (dbLeads && excludeIds.length > 0) {
       const excludeSet = new Set(excludeIds);
       dbLeads = dbLeads.filter(l => !excludeSet.has(l.id));
     }
 
+    let fallbackNotice = null;
+
+    // --- TIER 2: INDUSTRY MATCH ONLY (Drop City Filter) ---
+    if ((!dbLeads || dbLeads.length === 0) && searchIndustry) {
+      let queryT2 = supabase.from('leads').select('*').eq('is_test', false).eq('status', 'New').not('phone', 'is', null).not('email', 'is', null);
+      queryT2 = queryT2.or(industryOrString); // Keep industry, drop city
+      
+      const { data: fallbackLeads } = await queryT2.order('quality_score', { ascending: false }).limit(50);
+      dbLeads = fallbackLeads || [];
+      
+      if (dbLeads && excludeIds.length > 0) {
+        const excludeSet = new Set(excludeIds);
+        dbLeads = dbLeads.filter(l => !excludeSet.has(l.id));
+      }
+      
+      if (dbLeads.length > 0) {
+        fallbackNotice = `Expanded search globally! No uncontacted ${targetIndustry} leads left in ${targetCity}, so we found the highest-rated ${targetIndustry} target available elsewhere.`;
+      }
+    }
+
+    // --- TIER 3: CITY MATCH ONLY (Drop Industry Filter) ---
+    if ((!dbLeads || dbLeads.length === 0) && searchCity) {
+      let queryT3 = supabase.from('leads').select('*').eq('is_test', false).eq('status', 'New').not('phone', 'is', null).not('email', 'is', null);
+      queryT3 = queryT3.or(cityOrString); // Keep city, drop industry
+      
+      const { data: fallbackLeads } = await queryT3.order('quality_score', { ascending: false }).limit(50);
+      dbLeads = fallbackLeads || [];
+      
+      if (dbLeads && excludeIds.length > 0) {
+        const excludeSet = new Set(excludeIds);
+        dbLeads = dbLeads.filter(l => !excludeSet.has(l.id));
+      }
+      
+      if (dbLeads.length > 0) {
+        fallbackNotice = `Pivoted niche! No uncontacted ${targetIndustry} leads left in ${targetCity}, so we found the absolute highest-rated local business of any kind in ${targetCity}.`;
+      }
+    }
+
     const candidates = dbLeads || [];
 
     if (candidates.length === 0) {
-      return NextResponse.json({ success: false, error: `No uncontacted leads found for ${targetIndustry} in ${targetCity}. Try another city or industry!` }, { status: 400 });
+      return NextResponse.json({ success: false, error: `Database empty. No uncontacted leads found for ${targetIndustry} OR ${targetCity}. Please use Lead Radar to scrape fresh leads first!` }, { status: 400 });
     }
 
     // Step 2: 8-Agent Cross-Validation & Consensus Scoring
@@ -253,6 +295,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       scoutedAt: new Date().toISOString(),
+      fallbackNotice: fallbackNotice,
       winner: {
         id: winner.lead.id,
         companyName: winner.cleanName,

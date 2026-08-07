@@ -29,12 +29,14 @@ export default function ConsensusSwarm() {
   const [activeAgentIndex, setActiveAgentIndex] = useState(-1);
   const [winner, setWinner] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [seenLeadIds, setSeenLeadIds] = useState<string[]>([]);
 
   const runConsensusSwarm = async (shouldExcludeCurrent = false) => {
     setIsScanning(true);
     setWinner(null);
     setError(null);
+    setFallbackNotice(null);
     setActiveAgentIndex(0);
 
     // Build exclusion list
@@ -64,6 +66,7 @@ export default function ConsensusSwarm() {
       if (data.success && data.winner) {
         setActiveAgentIndex(AGENTS.length - 1);
         setWinner(data.winner);
+        setFallbackNotice(data.fallbackNotice || null);
         setSeenLeadIds((prev) => Array.from(new Set([...prev, data.winner.id])));
       } else {
         setError(data.error || "Failed to find consensus lead.");
@@ -237,6 +240,14 @@ export default function ConsensusSwarm() {
             <div className="p-4 bg-rose-950/40 border border-rose-800 text-rose-300 text-xs font-mono flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
+            </div>
+          )}
+
+          {/* Smart Fallback / Pivot Notice */}
+          {fallbackNotice && (
+            <div className="p-4 bg-amber-950/40 border border-amber-500/50 text-amber-200 text-xs font-mono flex items-center gap-2 shadow-lg">
+              <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+              {fallbackNotice}
             </div>
           )}
 
