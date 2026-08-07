@@ -169,14 +169,29 @@ export default function ConsensusSwarm() {
                 className="w-full bg-secondary/50 border border-border px-3 py-2 text-sm focus:outline-none focus:border-purple-500 font-mono text-foreground cursor-pointer"
               >
                 <option value="Auto">Auto (All Industries)</option>
-                <option value="Digital Marketing">Digital Marketing & Agencies</option>
-                <option value="Dental">Dental & Healthcare</option>
-                <option value="Real Estate">Real Estate & Property</option>
-                <option value="Fitness">Fitness & Gyms</option>
-                <option value="Restaurant">Restaurants & Hospitality</option>
-                <option value="SaaS">SaaS & Software</option>
-                <option value="E-Commerce">E-Commerce & Retail</option>
-                <option value="Legal">Legal & Financial Services</option>
+                <optgroup label="── General Industries ──">
+                  <option value="Restaurants & Cafés">Restaurants & Cafés</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Dental & Medical Clinics">Dental & Medical Clinics</option>
+                  <option value="Fitness & Gyms">Fitness & Gyms</option>
+                  <option value="Beauty & Wellness">Beauty & Wellness</option>
+                  <option value="Hotels & Hospitality">Hotels & Hospitality</option>
+                  <option value="Automotive">Automotive</option>
+                  <option value="Education & Coaching">Education & Coaching</option>
+                  <option value="Home & Interiors">Home & Interiors</option>
+                  <option value="Professional Services">Professional Services</option>
+                  <option value="Retail & Boutiques">Retail & Boutiques</option>
+                </optgroup>
+                <optgroup label="── Agency Industries (Akarsa One) ──">
+                  <option value="Digital Marketing Agency">Digital Marketing Agency</option>
+                  <option value="Social Media Agency">Social Media Agency</option>
+                  <option value="Advertising Agency">Advertising Agency</option>
+                  <option value="Branding Studio">Branding Studio</option>
+                  <option value="PR Firm">PR Firm</option>
+                  <option value="Marketing Consultant">Marketing Consultant</option>
+                  <option value="SEO Agency">SEO Agency</option>
+                  <option value="Web Design Agency">Web Design Agency</option>
+                </optgroup>
               </select>
             </div>
           </div>
