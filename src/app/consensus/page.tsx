@@ -19,6 +19,7 @@ const AGENTS = [
   { id: 'gdelt_news', name: 'GDELT News Agent', role: 'Press Releases & Expansions', icon: '📰', color: 'border-indigo-500/50 text-indigo-400' },
   { id: 'opencorporates', name: 'OpenCorporates Agent', role: 'Trade Registration & Status', icon: '🏛️', color: 'border-rose-500/50 text-rose-400' },
   { id: 'telegram_intent', name: 'Telegram & Social Agent', role: 'Direct Mobile Reachability', icon: '✈️', color: 'border-cyan-500/50 text-cyan-400' },
+  { id: 'urgent_need', name: 'Urgent Need Filter Agent', role: 'Vulnerabilities & Wasted Ad Budget', icon: '🚨', color: 'border-red-500/50 text-red-400' },
 ];
 
 export default function ConsensusSwarm() {
@@ -175,8 +176,8 @@ export default function ConsensusSwarm() {
             </div>
           </div>
 
-          {/* 8-Agent Collaboration Status Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* 9-Agent Collaboration Status Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-3">
             {AGENTS.map((agent, index) => {
               const isActive = activeAgentIndex >= index;
               const isCurrent = activeAgentIndex === index && isScanning;

@@ -186,6 +186,37 @@ export async function POST(req: Request) {
         });
       }
 
+      // Agent 9: Urgent Pain & Need Filter Agent
+      let urgentUrgencyLevel = 'medium';
+      let urgentFinding = '';
+
+      if (!lead.domain) {
+        consensusScore += 35; // HUGE BOOST
+        urgentUrgencyLevel = 'critical';
+        urgentFinding = 'CRITICAL NEED: Zero website on listing. Bouncing 35%+ mobile searchers to competitors right now.';
+      } else if (isMetaAdSpender && !lead.domain) {
+        consensusScore += 45; // MAXIMUM URGENCY (Wasting Ad Budget)
+        urgentUrgencyLevel = 'critical';
+        urgentFinding = 'EMERGENCY: Spending money on Meta Ads without a dedicated booking landing page! High conversion leak.';
+      } else if (lead.rating >= 4.5 && (lead.review_count || 0) >= 15) {
+        consensusScore += 25;
+        urgentUrgencyLevel = 'high';
+        urgentFinding = `HIGH NEED: Hard-earned ${lead.rating}★ reputation (${lead.review_count || 0} reviews) with zero automated review-to-client conversion funnel.`;
+      } else if (hasIntentSignal) {
+        consensusScore += 30;
+        urgentUrgencyLevel = 'high';
+        urgentFinding = 'HIGH NEED: Public intent post detected looking for web/lead services.';
+      } else {
+        urgentFinding = 'STANDARD NEED: Standard local business outreach candidate.';
+      }
+
+      verifications.push({
+        agentId: 'urgent_need',
+        agentName: 'Urgent Need Filter Agent',
+        status: (urgentUrgencyLevel === 'critical' || urgentUrgencyLevel === 'high') ? 'verified' : 'neutral',
+        finding: urgentFinding
+      });
+
       // Compute Pain Problem & Conversion Opportunity
       let painProblem = "";
       if (!lead.domain) {
