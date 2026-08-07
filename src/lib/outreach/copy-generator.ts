@@ -52,11 +52,36 @@ export function cleanCompanyName(rawName: string): string {
   return cleaned;
 }
 
+export function cleanCityName(rawCity?: string | null, fallback = 'your area'): string {
+  if (!rawCity) return fallback;
+  if (/dubai/i.test(rawCity)) return 'Dubai';
+  if (/abu dhabi/i.test(rawCity)) return 'Abu Dhabi';
+  if (/indore/i.test(rawCity)) return 'Indore';
+  if (/mumbai/i.test(rawCity)) return 'Mumbai';
+  if (/delhi/i.test(rawCity)) return 'Delhi';
+  if (/london/i.test(rawCity)) return 'London';
+  if (/austin/i.test(rawCity)) return 'Austin';
+  if (/singapore/i.test(rawCity)) return 'Singapore';
+  if (/sydney/i.test(rawCity)) return 'Sydney';
+  if (/roma|rome/i.test(rawCity)) return 'Rome';
+  if (/milano|milan/i.test(rawCity)) return 'Milan';
+
+  // Fallback: extract clean city from multi-part address
+  const parts = rawCity.split(/[-–,]/).map(p => p.trim()).filter(Boolean);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    if (part.length > 2 && !/\d/.test(part) && !/united|states|emirates|india|kingdom|italy|usa|uk/i.test(part)) {
+      return part;
+    }
+  }
+  return fallback;
+}
+
 export function generateSmartOutreachCopy(payload: CopyPayload): GeneratedCopy {
   const company = cleanCompanyName(payload.companyName || '');
   const firstName = payload.contactName ? payload.contactName.split(' ')[0] : '';
   const greeting = firstName || 'Hi there';
-  const city = payload.city || payload.evidenceText?.match(/in ([A-Za-z\s]+)/)?.[1] || '';
+  const city = cleanCityName(payload.city || payload.evidenceText?.match(/in ([A-Za-z\s]+)/)?.[1], '');
   const industry = payload.industry || 'business';
   const rating = payload.rating || 0;
   const reviews = payload.reviewCount || 0;
