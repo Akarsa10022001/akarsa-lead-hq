@@ -81,6 +81,7 @@ export default function ConsensusSwarm() {
 
   const handleSendEmail = async () => {
     if (!winner || !winner.email) return;
+    
     try {
       const res = await fetch("/api/dispatch/email", {
         method: "POST",
@@ -94,12 +95,28 @@ export default function ConsensusSwarm() {
 
       const data = await res.json();
       if (data.success) {
-        alert(`🚀 Sent via Resend API (be@akarsaone.xyz) to ${winner.email}! Message ID: ${data.messageId}`);
+        alert(`🚀 Sent via Resend API (be@akarsaone.xyz) to ${winner.email}!\n\nMessage ID: ${data.messageId}`);
       } else {
-        alert(`Email dispatch error: ${data.error}`);
+        // SMART FALLBACK: If Resend fails (quota, unauthorized), fallback to native email client
+        const useFallback = window.confirm(
+          `Resend API Blocked: ${data.error}\n\nWould you like to send this using your default email app (Gmail/Outlook) instead?`
+        );
+        if (useFallback) {
+          const subject = encodeURIComponent(winner.masterCopy.subject);
+          const body = encodeURIComponent(winner.masterCopy.body);
+          window.location.href = `mailto:${winner.email}?subject=${subject}&body=${body}`;
+        }
       }
     } catch (e: any) {
-      alert(`Dispatch error: ${e.message}`);
+      // SMART FALLBACK: Network Error
+      const useFallback = window.confirm(
+        `Network Error: ${e.message}\n\nWould you like to send this using your default email app instead?`
+      );
+      if (useFallback) {
+        const subject = encodeURIComponent(winner.masterCopy.subject);
+        const body = encodeURIComponent(winner.masterCopy.body);
+        window.location.href = `mailto:${winner.email}?subject=${subject}&body=${body}`;
+      }
     }
   };
 
