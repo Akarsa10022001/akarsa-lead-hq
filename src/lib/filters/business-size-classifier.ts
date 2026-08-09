@@ -66,7 +66,7 @@ const KNOWN_CHAINS: string[] = [
 // Domain patterns that indicate corporate/enterprise
 const CORPORATE_DOMAINS: RegExp[] = [
   /\.(gov|edu|org|mil)\b/i,
-  /^(www\.)?(nike|adidas|marriott|hilton|hyatt|starbucks|mcdonalds|kfc|subway|zara|hm|uniqlo|apple|samsung|google|facebook|amazon|microsoft|uber)\./i,
+  /(https?:\/\/)?(www\.)?(nike|adidas|marriott|hilton|hyatt|starbucks|mcdonalds|kfc|subway|zara|hm|uniqlo|apple|samsung|google|facebook|amazon|microsoft|uber|atlantis|jumeirah|emaar|nakheel)\./i,
 ];
 
 // Words in company name that signal corporate structure
@@ -131,7 +131,7 @@ export function classifyBusinessSize(lead: {
   // ── CHECK 3: Corporate Domain Pattern ──
   for (const pattern of CORPORATE_DOMAINS) {
     if (pattern.test(domainLower)) {
-      chainScore += 30;
+      chainScore += 50;
       reasons.push(`Corporate domain pattern: ${domainLower}`);
       break;
     }
