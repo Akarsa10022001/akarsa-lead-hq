@@ -160,22 +160,25 @@ export async function POST(req: Request) {
         });
       }
 
-      // Agent 2: Meta Ad Library Agent
-      const isMetaAdSpender = lead.source === 'meta_ads' || (lead.intel_grade === 'A' && lead.domain);
+      // Agent 2: Meta Ad Library Agent (Real via Pixel Scraper)
+      const sf = lead.score_factors || {};
+      const isMetaAdSpender = lead.runs_ads || sf.tech_stack?.hasMetaPixel;
       if (isMetaAdSpender) {
         consensusScore += 20;
         verifications.push({
           agentId: 'meta_ads',
           agentName: 'Meta Ad Library Agent',
           status: 'verified',
-          finding: 'Verified active marketing budget & running Facebook/Instagram ad campaigns.'
+          finding: 'Verified active Facebook/Instagram Pixel on website. Actively retargeting.'
         });
       } else {
         verifications.push({
           agentId: 'meta_ads',
           agentName: 'Meta Ad Library Agent',
           status: 'neutral',
-          finding: 'No active Meta ad spend detected.'
+          finding: sf.tech_stack?.scrapedSuccessfully 
+            ? 'Verified no active Meta Pixel on website. Zero ad spend detected.' 
+            : 'No active Meta ad spend detected.'
         });
       }
 
@@ -201,35 +204,38 @@ export async function POST(req: Request) {
         });
       }
 
-      // Agent 5: Reddit & RFP Intent Agent
-      const hasIntentSignal = lead.ai_hook_draft && /hiring|need|website|marketing|looking for/i.test(lead.ai_hook_draft);
-      if (hasIntentSignal) {
+      // Agent 5: Reddit & RFP Intent Agent (Real)
+      const reddit = sf.reddit;
+      if (reddit?.intentSignals > 0) {
         consensusScore += 15;
         verifications.push({
           agentId: 'reddit_intent',
           agentName: 'Reddit & RFP Intent Agent',
           status: 'verified',
-          finding: 'Detected active community buying intent & service need signals.'
+          finding: `Detected ${reddit.intentSignals} active community buying intent signals for this industry locally. ${reddit.topPostUrl ? `Top post: ${reddit.topPostUrl}` : ''}`
         });
       } else {
         verifications.push({
           agentId: 'reddit_intent',
           agentName: 'Reddit & RFP Intent Agent',
           status: 'neutral',
-          finding: 'No active public RFP post found.'
+          finding: reddit?.intentSignals === 0 
+            ? 'Scanned Reddit. No active public RFP posts found.' 
+            : 'Pending Reddit scan.'
         });
       }
 
-      // Agent 6: GDELT News Triggers Agent
-      if (lead.domain) {
+      // Agent 6: GDELT News Triggers Agent (Real)
+      const gdelt = sf.gdelt;
+      if (gdelt?.newsMentions > 0) {
         consensusScore += 10;
         verifications.push({
           agentId: 'gdelt_news',
           agentName: 'GDELT News Agent',
           status: 'verified',
-          finding: `Verified active web domain footprint: ${lead.domain}`
+          finding: `Found ${gdelt.newsMentions} recent global news mentions. ${gdelt.latestArticleUrl ? `Latest: ${gdelt.latestArticleUrl}` : ''}`
         });
-      } else {
+      } else if (!lead.domain) {
         consensusScore += 15; // HIGH NEED OPPORTUNITY
         verifications.push({
           agentId: 'gdelt_news',
@@ -237,16 +243,31 @@ export async function POST(req: Request) {
           status: 'verified',
           finding: 'HIGH OPPORTUNITY: Missing official website on Google listing!'
         });
+      } else {
+        verifications.push({
+          agentId: 'gdelt_news',
+          agentName: 'GDELT News Agent',
+          status: 'neutral',
+          finding: gdelt?.newsMentions === 0 ? `Scanned GDELT. Zero recent news mentions for ${lead.company_name}.` : 'Pending GDELT scan.'
+        });
       }
 
-      // Agent 7: OpenCorporates Registry Agent
-      if (lead.company_name) {
+      // Agent 7: OpenCorporates Registry Agent (Real)
+      const oc = sf.opencorporates;
+      if (oc?.isRegistered) {
         consensusScore += 10;
         verifications.push({
           agentId: 'opencorporates',
           agentName: 'OpenCorporates Registry Agent',
           status: 'verified',
-          finding: `Validated trade registration name: "${cleanCompanyName(lead.company_name)}"`
+          finding: `Validated trade registration via OpenCorporates: "${oc.registrationName}" [${oc.jurisdiction?.toUpperCase()} - ${oc.companyNumber}]`
+        });
+      } else {
+        verifications.push({
+          agentId: 'opencorporates',
+          agentName: 'OpenCorporates Registry Agent',
+          status: 'neutral',
+          finding: oc?.isRegistered === false ? `No official public registry found on OpenCorporates for "${cleanCompanyName(lead.company_name)}".` : 'Pending OpenCorporates scan.'
         });
       }
 
@@ -278,7 +299,7 @@ export async function POST(req: Request) {
         consensusScore += 25;
         urgentUrgencyLevel = 'high';
         urgentFinding = `HIGH NEED: Hard-earned ${lead.rating}★ reputation (${lead.review_count || 0} reviews) with zero automated review-to-client conversion funnel.`;
-      } else if (hasIntentSignal) {
+      } else if (reddit?.intentSignals > 0) {
         consensusScore += 30;
         urgentUrgencyLevel = 'high';
         urgentFinding = 'HIGH NEED: Public intent post detected looking for web/lead services.';
