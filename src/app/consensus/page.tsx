@@ -20,6 +20,7 @@ const AGENTS = [
   { id: 'opencorporates', name: 'OpenCorporates Agent', role: 'Trade Registration & Status', icon: '🏛️', color: 'border-rose-500/50 text-rose-400' },
   { id: 'telegram_intent', name: 'Telegram & Social Agent', role: 'Direct Mobile Reachability', icon: '✈️', color: 'border-cyan-500/50 text-cyan-400' },
   { id: 'urgent_need', name: 'Urgent Need Filter Agent', role: 'Vulnerabilities & Wasted Ad Budget', icon: '🚨', color: 'border-red-500/50 text-red-400' },
+  { id: 'business_size', name: 'Business Size Classifier', role: 'Chain vs Local Owner Filter', icon: '🏪', color: 'border-lime-500/50 text-lime-400' },
 ];
 
 export default function ConsensusSwarm() {

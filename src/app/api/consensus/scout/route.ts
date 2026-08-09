@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase/client';
 import { cleanCompanyName, cleanCityName, generateSmartOutreachCopy } from '@/lib/outreach/copy-generator';
+import { classifyBusinessSize } from '@/lib/filters/business-size-classifier';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -97,9 +98,48 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: `Database empty. No uncontacted leads found for ${targetIndustry} OR ${targetCity}. Please use Lead Radar to scrape fresh leads first!` }, { status: 400 });
     }
 
+    // Step 1.5: Smart Business Size Filter — Remove chains & corporations BEFORE scoring
+    const filteredCandidates = candidates.filter(lead => {
+      const classification = classifyBusinessSize({
+        company_name: lead.company_name,
+        review_count: lead.review_count,
+        rating: lead.rating,
+        domain: lead.domain,
+        industry: lead.industry,
+        category: lead.category,
+        contact_name: lead.contact_name,
+        email: lead.email,
+        phone: lead.phone,
+      });
+      if (!classification.isGoodTarget) {
+        console.log(`[Consensus] FILTERED OUT chain/enterprise: ${lead.company_name} (${classification.size}, reasons: ${classification.reasons.join(', ')})`);
+      }
+      return classification.isGoodTarget;
+    });
+
+    // If all candidates were filtered as chains, fall back to original list but warn
+    const finalCandidates = filteredCandidates.length > 0 ? filteredCandidates : candidates;
+    const chainFilterNotice = filteredCandidates.length === 0 && candidates.length > 0
+      ? 'All leads in this niche appear to be chains/corporations. Showing best available — consider scraping more local businesses.'
+      : filteredCandidates.length < candidates.length
+        ? `Filtered out ${candidates.length - filteredCandidates.length} chain/corporate leads. Focusing on ${filteredCandidates.length} local businesses.`
+        : null;
+
     // Step 2: 8-Agent Cross-Validation & Consensus Scoring
-    const scoredCandidates = candidates.map(lead => {
-      let consensusScore = 50; // base score
+    const scoredCandidates = finalCandidates.map(lead => {
+      const bizClass = classifyBusinessSize({
+        company_name: lead.company_name,
+        review_count: lead.review_count,
+        rating: lead.rating,
+        domain: lead.domain,
+        industry: lead.industry,
+        category: lead.category,
+        contact_name: lead.contact_name,
+        email: lead.email,
+        phone: lead.phone,
+      });
+
+      let consensusScore = 50 + bizClass.penaltyScore; // base score + size bonus/penalty
       const verifications: AgentVerification[] = [];
 
       // Agent 1: Google Maps Agent
@@ -253,6 +293,14 @@ export async function POST(req: Request) {
         finding: urgentFinding
       });
 
+      // Agent 10: Business Size Classifier Agent
+      verifications.push({
+        agentId: 'business_size',
+        agentName: 'Business Size Classifier',
+        status: bizClass.isGoodTarget ? 'verified' : 'failed',
+        finding: `${bizClass.size.replace(/_/g, ' ').toUpperCase()} (${bizClass.confidence}% confidence). ${bizClass.reasons.slice(0, 2).join('. ')}.`
+      });
+
       // Compute Pain Problem & Conversion Opportunity
       let painProblem = "";
       if (!lead.domain) {
@@ -295,7 +343,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       scoutedAt: new Date().toISOString(),
-      fallbackNotice: fallbackNotice,
+      fallbackNotice: chainFilterNotice || fallbackNotice,
       winner: {
         id: winner.lead.id,
         companyName: winner.cleanName,
