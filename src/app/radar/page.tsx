@@ -8,6 +8,7 @@ import { Search, Filter, Mail, ChevronDown, Edit2, MessageSquare, Trash2, Send, 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { generateSmartOutreachCopy, cleanCompanyName } from "@/lib/outreach/copy-generator";
+import { classifyBusinessSize } from "@/lib/filters/business-size-classifier";
 
 export default function Radar() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -15,6 +16,7 @@ export default function Radar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [hideChains, setHideChains] = useState(true);
 
   useEffect(() => {
     async function fetchLeads() {
@@ -70,6 +72,17 @@ export default function Radar() {
     const nameKey = (lead.company_name || '').trim().toLowerCase();
     if (nameKey && seenCompanyNames.has(nameKey)) return false;
     if (nameKey) seenCompanyNames.add(nameKey);
+
+    // Business Size Filter — hide chains/enterprises when toggle is ON
+    if (hideChains) {
+      const biz = classifyBusinessSize({
+        company_name: lead.company_name, review_count: lead.review_count,
+        rating: lead.rating, domain: lead.domain, industry: lead.industry,
+        category: lead.category, contact_name: lead.contact_name,
+        email: lead.email, phone: lead.phone,
+      });
+      if (!biz.isGoodTarget) return false;
+    }
 
     return true;
   });
@@ -251,6 +264,10 @@ export default function Radar() {
     for (const lead of filteredLeads) {
       if (lead.status !== 'New' || !lead.phone) continue;
       if (!isLikelyMobileNumber(lead.phone)) continue; // Filter out landlines
+      
+      // Skip chains/corporations from WhatsApp queue
+      const bizCheck = classifyBusinessSize({ company_name: lead.company_name, review_count: lead.review_count, rating: lead.rating, domain: lead.domain, industry: lead.industry, category: lead.category, contact_name: lead.contact_name, email: lead.email, phone: lead.phone });
+      if (!bizCheck.isGoodTarget) continue;
 
       const digits = lead.phone.replace(/\D/g, '');
       const phoneKey = digits.length >= 10 ? digits.slice(-10) : digits;
@@ -605,16 +622,30 @@ export default function Radar() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input 
-                type="text" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search targets..." 
-                className="pl-9 pr-4 py-2 bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary w-full transition-all font-mono"
-              />
+          <div className="flex items-center justify-between p-4 border-b border-border/50 bg-secondary/20">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="relative max-w-sm w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search by company, contact, or industry..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-background border border-border pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-primary transition-colors font-mono"
+                />
+              </div>
+              
+              <button
+                onClick={() => setHideChains(!hideChains)}
+                className={`flex items-center gap-2 px-3 py-2 text-sm border font-medium font-mono transition-colors ${
+                  hideChains 
+                    ? 'bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20' 
+                    : 'bg-background text-muted-foreground border-border hover:bg-secondary/50'
+                }`}
+              >
+                <Filter className="w-4 h-4" />
+                {hideChains ? `Filtering Chains` : `Show Chains`}
+              </button>
             </div>
             
             <div className="relative">
@@ -671,6 +702,10 @@ export default function Radar() {
                   const grade = lead.score_grade || lead.intel_grade || (score >= 50 ? 'A' : (score >= 35 ? 'B' : (score >= 15 ? 'C' : 'D')));
                   const gradeColors: Record<string, string> = { A: 'bg-green-500/10 text-green-500 border-green-500/30', B: 'bg-blue-500/10 text-blue-500 border-blue-500/30', C: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30', D: 'bg-red-500/10 text-red-500 border-red-500/30' };
                   
+                  const bizSize = classifyBusinessSize({ company_name: lead.company_name, review_count: lead.review_count, rating: lead.rating, domain: lead.domain, industry: lead.industry, category: lead.category, contact_name: lead.contact_name, email: lead.email, phone: lead.phone });
+                  const sizeLabel = bizSize.size === 'ideal_local' ? '🏪 Local' : bizSize.size === 'small_business' ? '🏠 Small' : bizSize.size === 'mid_market' ? '🏢 Mid' : bizSize.size === 'corporate_chain' ? '🏬 Chain' : '🏭 Enterprise';
+                  const sizeBadgeColor = bizSize.isGoodTarget ? 'bg-lime-500/10 text-lime-400 border-lime-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30';
+
                   return (
                   <motion.tr 
                     key={lead.id}
@@ -680,7 +715,12 @@ export default function Radar() {
                     className="border-b border-border/50 hover:bg-secondary/30 transition-colors group"
                   >
                     <td className="p-4">
-                      <div className="font-bold font-heading uppercase tracking-wide">{lead.company_name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold font-heading uppercase tracking-wide">{lead.company_name}</div>
+                        <span className={`px-1.5 py-0.5 text-[8px] font-bold border rounded ${sizeBadgeColor} whitespace-nowrap`} title={bizSize.reasons.join(', ')}>
+                          {sizeLabel}
+                        </span>
+                      </div>
                       {lead.location && <div className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[200px]">{lead.location}</div>}
                     </td>
                     <td className="p-4">
