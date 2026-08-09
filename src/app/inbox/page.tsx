@@ -27,7 +27,8 @@ export default function Inbox() {
             leads!inner (
               company_name,
               contact_name,
-              phone
+              phone,
+              email
             )
           )
         `)
@@ -123,14 +124,23 @@ export default function Inbox() {
                     </div>
                     
                     <div className="flex flex-row md:flex-col gap-2 pt-2 md:pt-0">
-                      <a 
-                        href={`https://wa.me/${msg.outreach_sequences.leads.phone.replace(/\\D/g, '')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-lg text-sm font-bold shadow-sm hover:bg-[#20b858] transition-colors"
-                      >
-                        <Reply className="w-4 h-4" /> Reply
-                      </a>
+                      {msg.outreach_sequences?.leads?.phone ? (
+                        <a 
+                          href={`https://wa.me/${msg.outreach_sequences.leads.phone.replace(/\\D/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-lg text-sm font-bold shadow-sm hover:bg-[#20b858] transition-colors"
+                        >
+                          <Reply className="w-4 h-4" /> Reply on WhatsApp
+                        </a>
+                      ) : msg.channel === 'email' ? (
+                        <a 
+                          href={`mailto:${msg.outreach_sequences?.leads?.email || ''}`}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold shadow-sm hover:bg-primary/90 transition-colors"
+                        >
+                          <Reply className="w-4 h-4" /> Reply via Email
+                        </a>
+                      ) : null}
                     </div>
                   </motion.div>
                 ))}
