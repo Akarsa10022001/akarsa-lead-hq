@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApifyClient } from 'apify-client';
 import { supabase } from '@/lib/supabase/client';
+import { scoreInstagramLead } from '@/lib/instagram/lead-scorer';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes
@@ -24,21 +25,21 @@ function extractContacts(bio: string) {
   };
 }
 
-function isBusinessLike(item: any): boolean {
-  if (item.isBusinessAccount || item.businessCategoryName) return true;
-  if (item.businessEmail || item.publicEmail || item.businessContactMethod) return true;
-  if (item.externalUrl) return true;
+// Lightweight pre-check before spending scorer cycles
+function couldBeBusiness(item: any): boolean {
+  const posts = item.postsCount || item.mediaCount || 0;
+  if (posts < 3) return false;
   const bio = item.biography || item.bio || '';
-  if (/@[\w.]+\.[a-z]{2,}/i.test(bio)) return true;
-  if (/\+[\d\s]{9,}/i.test(bio)) return true;
-  return false;
+  if (!bio && !item.externalUrl && !item.businessCategoryName) return false;
+  return true;
 }
 
 function parseLead(item: any, source: string) {
   const bio = item.biography || item.bio || '';
   const contacts = extractContacts(bio);
   const username = item.username || item.ownerUsername || '';
-  return {
+
+  const leadData = {
     username,
     fullName: item.fullName || item.ownerFullName || username,
     biography: bio,
@@ -53,12 +54,26 @@ function parseLead(item: any, source: string) {
     hasGoogleAnalytics: false,
     isBusinessAccount: !!(item.isBusinessAccount),
     profilePicUrl: item.profilePicUrl || item.profilePicUrlHD || null,
+    verified: !!(item.verified || item.isVerified),
+    postCount: item.postsCount || item.mediaCount || 0,
     source,
-    classifiedAs: 'small_business',
-    isGoodTarget: true,
     igUrl: `https://instagram.com/${username}`,
   };
+
+  // Run quality scorer
+  const scored = scoreInstagramLead(leadData);
+  return {
+    ...leadData,
+    score: scored.total,
+    grade: scored.grade,
+    gradeLabel: scored.label,
+    gradeColor: scored.color,
+    scoreReasons: scored.reasons,
+    classifiedAs: scored.classifiedAs,
+    isGoodTarget: scored.isGoodTarget,
+  };
 }
+
 
 // ── POST: Run agent, stream results via SSE ───────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -165,11 +180,15 @@ export async function POST(req: NextRequest) {
                 if (!profileUsername || seen.has(profileUsername)) continue;
                 seen.add(profileUsername);
 
-                if (isBusinessLike(profile)) {
+                if (couldBeBusiness(profile)) {
                   const lead = parseLead(profile, 'comments');
-                  discovered.push(lead);
-                  send({ type: 'lead', data: lead });
-                  send({ type: 'log', message: `📌 [Commenter] @${profile.username} — ${profile.fullName || ''} ${profile.businessCategoryName ? `(${profile.businessCategoryName})` : ''}` });
+                  if (lead.isGoodTarget) {
+                    discovered.push(lead);
+                    send({ type: 'lead', data: lead });
+                    send({ type: 'log', message: `📌 [${lead.grade}${lead.score}] @${profileUsername} — ${lead.fullName} ${lead.category ? `(${lead.category})` : ''} ${lead.email ? '✉️' : ''}${lead.phone ? '📞' : ''}` });
+                  } else {
+                    send({ type: 'log', message: `⏭ [${lead.grade}${lead.score}] @${profileUsername} skipped — ${lead.gradeLabel}` });
+                  }
                 }
               }
             } catch (err: any) {
@@ -182,7 +201,8 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        send({ type: 'log', message: `✅ Commenters: ${discovered.filter(d => d.source === 'comments').length} business leads found` });
+        send({ type: 'log', message: `✅ Commenters: ${discovered.filter(d => d.source === 'comments').length} quality leads found` });
+
       }
 
       // ── Step 3: Mine related/similar profiles ─────────────────────────────
@@ -204,11 +224,15 @@ export async function POST(req: NextRequest) {
             if (!profileUsername || seen.has(profileUsername) || profileUsername === username) continue;
             seen.add(profileUsername);
 
-            if (isBusinessLike(profile)) {
+            if (couldBeBusiness(profile)) {
               const lead = parseLead(profile, 'related');
-              discovered.push(lead);
-              send({ type: 'lead', data: lead });
-              send({ type: 'log', message: `📌 [Related] @${profile.username} — ${profile.fullName || ''} ${profile.businessCategoryName ? `(${profile.businessCategoryName})` : ''}` });
+              if (lead.isGoodTarget) {
+                discovered.push(lead);
+                send({ type: 'lead', data: lead });
+                send({ type: 'log', message: `📌 [${lead.grade}${lead.score}] @${profileUsername} — ${lead.fullName} ${lead.category ? `(${lead.category})` : ''} ${lead.email ? '✉️' : ''}${lead.phone ? '📞' : ''}` });
+              } else {
+                send({ type: 'log', message: `⏭ [${lead.grade}${lead.score}] @${profileUsername} skipped — ${lead.gradeLabel}` });
+              }
             }
           }
           send({ type: 'log', message: `✅ Related: ${discovered.filter(d => d.source === 'related').length} similar business profiles found` });

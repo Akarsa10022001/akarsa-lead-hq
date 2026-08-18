@@ -34,6 +34,12 @@ interface MiningResult {
   hasMetaPixel: boolean; hasGoogleAnalytics: boolean;
   isBusinessAccount: boolean; profilePicUrl: string | null;
   source: string; classifiedAs: string; isGoodTarget: boolean; igUrl: string;
+  // Scorer fields
+  score?: number;
+  grade?: 'A' | 'B' | 'C' | 'D';
+  gradeLabel?: string;
+  gradeColor?: string;
+  scoreReasons?: string[];
 }
 
 const SOURCE_BADGES: Record<string, { color: string; label: string }> = {
@@ -402,9 +408,14 @@ export default function InstagramAgent() {
                           <img src={lead.profilePicUrl} alt="" className="w-9 h-9 rounded-full object-cover border border-border shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold text-sm truncate">{lead.fullName || lead.username}</span>
                             <span className="text-xs text-muted-foreground shrink-0">@{lead.username}</span>
+                            {/* Score badge */}
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${lead.gradeColor || "bg-secondary border-border text-muted-foreground"}`}
+                              title={lead.scoreReasons?.join('\n')}>
+                              {lead.gradeLabel || `Grade ${lead.grade}`} · {lead.score}
+                            </span>
                           </div>
                           <div className="flex gap-1.5 mt-0.5 flex-wrap">
                             <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${SOURCE_BADGES[lead.source]?.color || "bg-secondary border-border text-muted-foreground"}`}>
@@ -412,6 +423,9 @@ export default function InstagramAgent() {
                             </span>
                             {lead.category && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border text-muted-foreground">{lead.category}</span>
+                            )}
+                            {lead.classifiedAs && lead.classifiedAs !== 'unknown' && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border text-muted-foreground capitalize">{lead.classifiedAs.replace('_', ' ')}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-1 flex-wrap text-[11px] text-muted-foreground">
