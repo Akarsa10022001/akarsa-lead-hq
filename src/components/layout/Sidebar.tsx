@@ -2,6 +2,14 @@
 
 import { motion } from "framer-motion";
 import { Zap, Target, Mail, Send, Award, Flame, Users, LayoutDashboard, Activity, Sparkles } from "lucide-react";
+
+const IgIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -65,6 +73,15 @@ export default function Sidebar() {
           <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/activity' ? 'bg-secondary text-primary border border-border' : 'text-muted-foreground border border-transparent hover:border-border hover:bg-secondary hover:text-foreground'}`}>
             <Activity className="w-5 h-5" />
             <span className="font-medium">Activity Log</span>
+          </span>
+        </Link>
+        <div className="pt-4 pb-1">
+          <span className="px-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest block font-heading">Agents</span>
+        </div>
+        <Link href="/instagram">
+          <span className={`flex items-center gap-3 px-4 py-3 transition-all ${pathname === '/instagram' ? 'bg-pink-950/60 text-pink-300 border border-pink-500/50' : 'text-muted-foreground border border-transparent hover:border-pink-500/40 hover:bg-pink-950/30 hover:text-pink-300'}`}>
+            <IgIcon className="w-5 h-5 text-pink-400" />
+            <span className="font-semibold text-xs uppercase tracking-wider">Instagram Agent</span>
           </span>
         </Link>
         <div className="pt-4 pb-1">
