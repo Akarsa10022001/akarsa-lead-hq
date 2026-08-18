@@ -1,0 +1,60 @@
+name: Akarsa Lead HQ - Instagram & B2B Miner
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Target Instagram Accounts (comma-separated usernames or URLs)'
+        required: false
+        default: 'peakarchitects'
+      keywords:
+        description: 'Niche & City Search Keywords (comma-separated)'
+        required: false
+        default: 'architects UK, interior design studio, luxury cafes'
+      max_leads:
+        description: 'Max leads to find'
+        required: false
+        default: '30'
+      dry_run:
+        description: 'Dry Run (Test without saving to DB)'
+        type: boolean
+        required: false
+        default: false
+
+  # Scheduled nightly run at 02:00 UTC (07:30 AM IST)
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  mine-and-score-leads:
+    name: 🚀 Headless Lead Mining & Quality Scoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: 🎭 Install Playwright Chromium & System Dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: ⚡ Execute Miner Engine
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.SUPABASE_URL || 'https://jwityrtfzuhnupjnmwfr.supabase.co' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3aXR5cnRmenVobnVwam5td2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0Njg2NjUsImV4cCI6MjA5ODA0NDY2NX0.rhoeaty-pNUprAgjcp7wCCkoEIzfo0E3ptOi1mPtCFU' }}
+          TARGETS: ${{ github.event.inputs.targets }}
+          KEYWORDS: ${{ github.event.inputs.keywords }}
+          MAX_LEADS: ${{ github.event.inputs.max_leads || '30' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "Starting Akarsa Lead Mining Engine..."
+          npx tsx scripts/github-actions-miner.ts
