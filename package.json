@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "mine": "tsx scripts/github-actions-miner.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -43,6 +44,7 @@
     "eslint-config-next": "16.2.9",
     "playwright": "^1.62.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }
