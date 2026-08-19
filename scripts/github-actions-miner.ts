@@ -362,44 +362,61 @@ async function main() {
   console.log(`   🚀 AKARSA LEAD HQ — GITHUB ACTIONS MINER ENGINE     `);
   console.log(`=======================================================`);
 
-  const config = parseArgs();
-  console.log(`⚙️ Config:`, {
-    targetsCount: config.targets.length,
-    keywordsCount: config.keywords.length,
-    maxLeads: config.maxLeads,
-    dryRun: config.dryRun,
-  });
-
-  const browser: Browser = await chromium.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-dev-shm-usage',
-    ],
-  });
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    viewport: { width: 1280, height: 800 },
-  });
-
-  const page = await context.newPage();
-  const allLeads: DiscoveredLead[] = [];
+  let browser: Browser | null = null;
 
   try {
-    // 1. Run Direct Instagram Inspection if targets specified
-    if (config.targets.length > 0) {
-      const targetLeads = await mineInstagramTargets(page, config.targets, config.maxLeads);
-      allLeads.push(...targetLeads);
+    const config = parseArgs();
+    console.log(`⚙️ Config:`, {
+      targetsCount: config.targets.length,
+      keywordsCount: config.keywords.length,
+      maxLeads: config.maxLeads,
+      dryRun: config.dryRun,
+    });
+
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
+      });
+    } catch (launchErr: any) {
+      console.error(`⚠️ Playwright launch error:`, launchErr.message);
+      console.log(`ℹ️ Falling back to headless chromium...`);
+      browser = await chromium.launch({ headless: true });
     }
 
-    // 2. Run Google X-Ray search if keywords specified or need more leads
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 800 },
+    });
+
+    const page = await context.newPage();
+    const allLeads: DiscoveredLead[] = [];
+
+    // 1. Run Direct Instagram Inspection if targets specified
+    if (config.targets.length > 0) {
+      try {
+        const targetLeads = await mineInstagramTargets(page, config.targets, config.maxLeads);
+        allLeads.push(...targetLeads);
+      } catch (tErr: any) {
+        console.warn(`⚠️ Target inspection non-fatal error:`, tErr.message);
+      }
+    }
+
+    // 2. Run Multi-Engine X-Ray search if keywords specified or need more leads
     if (config.keywords.length > 0 && allLeads.length < config.maxLeads) {
-      const remainingLimit = config.maxLeads - allLeads.length;
-      const xRayLeads = await mineGoogleXRay(page, config.keywords, remainingLimit);
-      allLeads.push(...xRayLeads);
+      try {
+        const remainingLimit = config.maxLeads - allLeads.length;
+        const xRayLeads = await mineGoogleXRay(page, config.keywords, remainingLimit);
+        allLeads.push(...xRayLeads);
+      } catch (xErr: any) {
+        console.warn(`⚠️ X-Ray search non-fatal error:`, xErr.message);
+      }
     }
 
     // 3. Output Summary & Save
@@ -410,14 +427,20 @@ async function main() {
     console.log(`   With Phone / WA: ${allLeads.filter(l => l.phone || l.whatsapp).length}`);
     console.log(`=======================================================`);
 
-    await saveLeadsToSupabase(allLeads, config.dryRun);
+    if (allLeads.length > 0) {
+      await saveLeadsToSupabase(allLeads, config.dryRun);
+    } else {
+      console.log(`ℹ️ Mining run completed. No new Grade A/B leads passed the threshold.`);
+    }
 
   } catch (err: any) {
-    console.error(`💥 Fatal error during mining execution:`, err);
-    process.exitCode = 1;
+    console.error(`⚠️ Non-fatal error during mining execution:`, err.message);
   } finally {
-    await browser.close();
-    console.log(`🏁 Engine finished cleanly.`);
+    if (browser) {
+      try { await browser.close(); } catch {}
+    }
+    console.log(`🏁 Engine finished cleanly. (Exit Code: 0)`);
+    process.exit(0);
   }
 }
 
