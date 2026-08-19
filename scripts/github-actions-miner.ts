@@ -96,85 +96,128 @@ interface DiscoveredLead {
   scoreData?: LeadScore;
 }
 
-// ── Method 1: Google X-Ray Search for Instagram Leads ────────────────────────
+// ── Method 1: Resilient Multi-Engine X-Ray Search for Instagram Leads ────────
 async function mineGoogleXRay(page: Page, keywords: string[], limit: number): Promise<DiscoveredLead[]> {
-  console.log(`\n🔍 [X-Ray Engine] Searching Google index for Instagram business bios...`);
+  console.log(`\n🔍 [X-Ray Engine] Searching web index for Instagram business bios...`);
   const leads: DiscoveredLead[] = [];
   const seenUsernames = new Set<string>();
 
   for (const keyword of keywords) {
     if (leads.length >= limit) break;
 
-    // Craft high-intent dork query looking for public email/phone in bio
     const query = `site:instagram.com "${keyword}" ("@gmail.com" OR "@yahoo.com" OR "contact@" OR "wa.me" OR "+91" OR "+44" OR "+1")`;
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=30`;
+    console.log(`📡 Querying keyword: "${keyword}"`);
 
-    console.log(`📡 Querying: ${keyword}`);
-    try {
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForTimeout(2000);
+    // We try DuckDuckGo HTML first (100% CAPTCHA-free on cloud runners), then Bing & Google
+    const searchEngines = [
+      {
+        name: 'DuckDuckGo',
+        url: `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+        selector: '.result',
+        linkSelector: '.result__url, a.result__snippet',
+        titleSelector: '.result__title',
+        snippetSelector: '.result__snippet',
+      },
+      {
+        name: 'Bing',
+        url: `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=30`,
+        selector: '#b_results .b_algo',
+        linkSelector: 'h2 a',
+        titleSelector: 'h2',
+        snippetSelector: '.b_caption p, .b_algoSlug',
+      },
+      {
+        name: 'Google',
+        url: `https://www.google.com/search?q=${encodeURIComponent(query)}&num=30`,
+        selector: '#search .g, [data-sokoban-container]',
+        linkSelector: 'a',
+        titleSelector: 'h3',
+        snippetSelector: 'div, span',
+      },
+    ];
 
-      // Extract search result blocks
-      const results = await page.$$eval('#search .g, [data-sokoban-container]', (elements) => {
-        return elements.map((el) => {
-          const link = el.querySelector('a')?.getAttribute('href') || '';
-          const title = el.querySelector('h3')?.textContent || '';
-          const snippet = el.textContent || '';
-          return { link, title, snippet };
-        });
-      });
+    for (const engine of searchEngines) {
+      if (leads.length >= limit) break;
+      try {
+        console.log(`   Trying ${engine.name}...`);
+        await page.goto(engine.url, { waitUntil: 'domcontentloaded', timeout: 25000 });
+        await page.waitForTimeout(2000);
 
-      console.log(`   Found ${results.length} raw search entries`);
+        const results = await page.$$eval(engine.selector, (elements, selectors) => {
+          return elements.map(el => {
+            const linkEl = el.querySelector(selectors.linkSelector);
+            const link = (linkEl?.getAttribute('href') || (el as any).href || '').trim();
+            const title = (el.querySelector(selectors.titleSelector)?.textContent || '').trim();
+            const snippet = (el.querySelector(selectors.snippetSelector)?.textContent || el.textContent || '').trim();
+            return { link, title, snippet };
+          });
+        }, { linkSelector: engine.linkSelector, titleSelector: engine.titleSelector, snippetSelector: engine.snippetSelector });
 
-      for (const res of results) {
-        if (leads.length >= limit) break;
-        const match = res.link.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
-        if (!match) continue;
+        console.log(`   [${engine.name}] Extracted ${results.length} search entries`);
 
-        const username = match[1].toLowerCase();
-        // Skip system/explore/p links
-        if (['p', 'explore', 'stories', 'reels', 'direct', 'accounts', 'legal'].includes(username)) continue;
-        if (seenUsernames.has(username)) continue;
-        seenUsernames.add(username);
+        for (const res of results) {
+          if (leads.length >= limit) break;
+          // Decode URL if it's a DuckDuckGo redirect link (e.g. //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.instagram.com%2F...)
+          let rawUrl = res.link;
+          if (rawUrl.includes('uddg=')) {
+            const matchUddg = rawUrl.match(/uddg=([^&]+)/);
+            if (matchUddg) rawUrl = decodeURIComponent(matchUddg[1]);
+          }
 
-        const contacts = extractContacts(res.title + ' ' + res.snippet);
-        const fullName = res.title.split('•')[0]?.replace(/\(@[^)]+\)/, '').replace(/Instagram/i, '').replace(/[-|]/g, '').trim() || username;
+          const match = rawUrl.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
+          if (!match) continue;
 
-        const lead: DiscoveredLead = {
-          username,
-          fullName,
-          biography: res.snippet,
-          category: keyword,
-          externalUrl: null,
-          email: contacts.email,
-          phone: contacts.phone,
-          whatsapp: contacts.whatsapp,
-          followerCount: 0,
-          location: null,
-          hasMetaPixel: false,
-          hasGoogleAnalytics: false,
-          isBusinessAccount: true,
-          profilePicUrl: null,
-          verified: false,
-          postCount: 10,
-          source: `Google X-Ray (${keyword})`,
-          igUrl: `https://instagram.com/${username}`,
-        };
+          const username = match[1].toLowerCase();
+          if (['p', 'explore', 'stories', 'reels', 'direct', 'accounts', 'legal', 'tags', 'about'].includes(username)) continue;
+          if (seenUsernames.has(username)) continue;
+          seenUsernames.add(username);
 
-        lead.scoreData = scoreInstagramLead(lead);
+          const fullBioText = (res.title + ' ' + res.snippet).replace(/[\r\n]+/g, ' ');
+          const contacts = extractContacts(fullBioText);
+          const fullName = res.title.split('•')[0]?.replace(/\(@[^)]+\)/, '').replace(/Instagram/i, '').replace(/[-|]/g, '').trim() || username;
 
-        if (lead.scoreData.isGoodTarget) {
-          leads.push(lead);
-          console.log(`   ✨ [${lead.scoreData.grade}${lead.scoreData.total}] @${username} — ${fullName} (${contacts.email || contacts.phone || 'Bio Match'})`);
-        } else {
-          console.log(`   ⏭  [@${username} skipped: ${lead.scoreData.label}]`);
+          const lead: DiscoveredLead = {
+            username,
+            fullName,
+            biography: res.snippet.slice(0, 350),
+            category: keyword,
+            externalUrl: null,
+            email: contacts.email,
+            phone: contacts.phone,
+            whatsapp: contacts.whatsapp,
+            followerCount: 0,
+            location: null,
+            hasMetaPixel: false,
+            hasGoogleAnalytics: false,
+            isBusinessAccount: true,
+            profilePicUrl: null,
+            verified: false,
+            postCount: 10,
+            source: `${engine.name} X-Ray (${keyword})`,
+            igUrl: `https://instagram.com/${username}`,
+          };
+
+          lead.scoreData = scoreInstagramLead(lead);
+
+          if (lead.scoreData.isGoodTarget) {
+            leads.push(lead);
+            console.log(`   ✨ [${lead.scoreData.grade}${lead.scoreData.total}] @${username} — ${fullName} (${contacts.email || contacts.phone || contacts.whatsapp || 'Bio Match'})`);
+          } else {
+            console.log(`   ⏭  [@${username} skipped: ${lead.scoreData.label}]`);
+          }
         }
+
+        // If we got results from this engine, we don't need to query the other engines for this keyword
+        if (results.length > 0) break;
+
+      } catch (err: any) {
+        console.warn(`   ⚠️ ${engine.name} search error for "${keyword}":`, err.message);
       }
-    } catch (err: any) {
-      console.warn(`   ⚠️ Search error for "${keyword}":`, err.message);
+
+      await page.waitForTimeout(1500);
     }
 
-    await page.waitForTimeout(3000 + Math.random() * 2000);
+    await page.waitForTimeout(2000);
   }
 
   return leads;
