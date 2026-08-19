@@ -57,5 +57,6 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           echo "Starting Akarsa Lead Mining Engine..."
-          npm run mine
+          node scripts/github-actions-miner.js
+
 
