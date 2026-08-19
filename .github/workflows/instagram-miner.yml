@@ -42,7 +42,7 @@ jobs:
           cache: 'npm'
 
       - name: 📦 Install Dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
       - name: 🎭 Install Playwright Chromium & System Dependencies
         run: npx playwright install --with-deps chromium
@@ -51,10 +51,10 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.SUPABASE_URL || 'https://jwityrtfzuhnupjnmwfr.supabase.co' }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3aXR5cnRmenVobnVwam5td2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0Njg2NjUsImV4cCI6MjA5ODA0NDY2NX0.rhoeaty-pNUprAgjcp7wCCkoEIzfo0E3ptOi1mPtCFU' }}
-          TARGETS: ${{ github.event.inputs.targets }}
-          KEYWORDS: ${{ github.event.inputs.keywords }}
+          TARGETS: ${{ github.event.inputs.targets || 'peakarchitects' }}
+          KEYWORDS: ${{ github.event.inputs.keywords || 'architects UK, interior designers, boutique cafes' }}
           MAX_LEADS: ${{ github.event.inputs.max_leads || '30' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           echo "Starting Akarsa Lead Mining Engine..."
-          npx tsx scripts/github-actions-miner.ts
+          node scripts/github-actions-miner.js
