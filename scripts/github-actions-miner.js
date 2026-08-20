@@ -276,7 +276,7 @@ async function mineXRaySearch(page, keywords, limit) {
   return leads;
 }
 
-// ── Target Account Direct Inspector ───────────────────────────────────────────
+// ── Target Account Direct Inspector with Website Contact Enrichment ──────────
 async function mineTargets(page, targets, limit) {
   console.log(`\n📸 [Instagram Engine] Inspecting ${targets.length} target accounts...`);
   const leads = [];
@@ -299,10 +299,21 @@ async function mineTargets(page, targets, limit) {
         const followerMatch = ogDesc.match(/([\d,KkMm.]+)\s*Followers/i);
         const postMatch = ogDesc.match(/([\d,KkMm.]+)\s*Posts/i);
 
-        return { ogTitle, ogDesc, ogImage, bodyText, followerStr: followerMatch ? followerMatch[1] : '0', postStr: postMatch ? postMatch[1] : '0' };
+        // Find domain pattern in body text (e.g. peakarchitects.co.uk, brand.com)
+        const domainMatch = bodyText.match(/([a-zA-Z0-9-]+\.(?:com|co\.uk|org|net|in|io|design|studio|me|uk))/i);
+
+        return {
+          ogTitle,
+          ogDesc,
+          ogImage,
+          bodyText,
+          followerStr: followerMatch ? followerMatch[1] : '0',
+          postStr: postMatch ? postMatch[1] : '0',
+          extractedDomain: domainMatch ? domainMatch[1] : null,
+        };
       });
 
-      const contacts = extractContacts(pageData.ogDesc + ' ' + pageData.bodyText);
+      let contacts = extractContacts(pageData.ogDesc + ' ' + pageData.bodyText);
       const cleanName = pageData.ogTitle.split('(')[0]?.replace(/•.*$/, '').trim() || target;
 
       const parseFollowers = (str) => {
@@ -312,18 +323,48 @@ async function mineTargets(page, targets, limit) {
         return parseInt(s, 10) || 0;
       };
 
+      let websiteUrl = pageData.extractedDomain ? `https://${pageData.extractedDomain.replace(/^https?:\/\//, '')}` : null;
+      let hasMetaPixel = false;
+
+      // ── Deep Enrichment: Crawl listed website for email & phone ─────────────
+      if (websiteUrl) {
+        console.log(`   🌐 Discovered website: ${websiteUrl} — deep-enriching contacts...`);
+        try {
+          const webPage = await page.context().newPage();
+          await webPage.goto(websiteUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          await webPage.waitForTimeout(1500);
+
+          const webContent = await webPage.evaluate(() => {
+            const text = document.body ? document.body.innerText : '';
+            const html = document.documentElement.innerHTML || '';
+            const hasPixel = html.includes('fbq(') || html.includes('connect.facebook.net') || html.includes('fbevents.js');
+            return { text, hasPixel };
+          });
+
+          const webContacts = extractContacts(webContent.text);
+          if (!contacts.email && webContacts.email) contacts.email = webContacts.email;
+          if (!contacts.phone && webContacts.phone) contacts.phone = webContacts.phone;
+          hasMetaPixel = webContent.hasPixel;
+
+          await webPage.close();
+          console.log(`   ✅ Enriched from website: ${contacts.email || 'No email'} | ${contacts.phone || 'No phone'} | Pixel: ${hasMetaPixel ? 'Yes' : 'No'}`);
+        } catch (webErr) {
+          console.log(`   ⚠️ Could not crawl website: ${webErr.message}`);
+        }
+      }
+
       const lead = {
         username: target,
         fullName: cleanName,
         biography: pageData.ogDesc || pageData.bodyText.slice(0, 300),
         category: null,
-        externalUrl: null,
+        externalUrl: websiteUrl,
         email: contacts.email,
         phone: contacts.phone,
         whatsapp: contacts.whatsapp,
         followerCount: parseFollowers(pageData.followerStr),
         location: null,
-        hasMetaPixel: false,
+        hasMetaPixel: hasMetaPixel,
         hasGoogleAnalytics: false,
         isBusinessAccount: true,
         profilePicUrl: pageData.ogImage || null,
@@ -337,7 +378,7 @@ async function mineTargets(page, targets, limit) {
 
       if (lead.scoreData.isGoodTarget) {
         leads.push(lead);
-        console.log(`   ✨ [${lead.scoreData.grade}${lead.scoreData.total}] @${target} — ${cleanName} (${lead.scoreData.label})`);
+        console.log(`   ✨ [${lead.scoreData.grade}${lead.scoreData.total}] @${target} — ${cleanName} (${lead.scoreData.label} · Email: ${lead.email || 'None'})`);
       } else {
         console.log(`   ⏭  [@${target} scored ${lead.scoreData.total}: ${lead.scoreData.label}]`);
       }
